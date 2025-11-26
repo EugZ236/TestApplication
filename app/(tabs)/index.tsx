@@ -106,7 +106,18 @@ export default function TeamsScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingVertical: 12 }}
         renderItem={({ item }) => (
-          <View style={styles.teamRow}>
+          <TouchableOpacity
+            style={styles.teamRow}
+            onPress={async () => {
+              try {
+                await AsyncStorage.setItem('view_team_id', item.id);
+              } catch (e) {
+                console.error(e);
+              }
+              router.push('/team');
+            }}
+            activeOpacity={0.8}
+          >
             <View style={[styles.teamIcon, { backgroundColor: item.color }]}>
               <Text style={styles.teamIconText}>{item.name.charAt(0).toUpperCase()}</Text>
             </View>
@@ -120,7 +131,7 @@ export default function TeamsScreen() {
             >
               <IconSymbol name="ellipsis" size={18} color="#333" />
             </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         )}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
