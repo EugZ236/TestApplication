@@ -1,10 +1,10 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import { isValidEmail, validatePassword } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { isValidEmail, validatePassword } from "@/utils/validation";
 import {
     ActivityIndicator,
     Alert,

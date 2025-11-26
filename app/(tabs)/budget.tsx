@@ -1,7 +1,7 @@
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
 
 export default function BudgetPage() {
   return (

@@ -1,9 +1,9 @@
-import React from 'react';
-import { StyleSheet, View, TouchableOpacity, Image } from 'react-native';
-import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'expo-router';
+import React from 'react';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();

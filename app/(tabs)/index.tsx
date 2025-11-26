@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList, Modal, Alert } from 'react-native';
-import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Alert, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const TEAM_STORAGE_KEY = 'teams_v1';
 
