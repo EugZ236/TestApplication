@@ -2,9 +2,10 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 const TEAM_STORAGE_KEY = 'teams_v1';
 const VIEW_TEAM_KEY = 'view_team_id';
@@ -17,6 +18,8 @@ export default function TeamPage() {
   const EXPANDED_WIDTH = 260;
   const animatedWidth = useRef(new Animated.Value(COLLAPSED_WIDTH)).current;
   const [isOpen, setIsOpen] = useState(false);
+
+  const [qrLink, setQrLink] = useState<string | null>(null);
 
   function toggleSidebar() {
     const toValue = isOpen ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
@@ -36,12 +39,17 @@ export default function TeamPage() {
         const raw = await AsyncStorage.getItem(TEAM_STORAGE_KEY);
         const list = raw ? JSON.parse(raw) : [];
         const found = list.find((t: any) => t.id === id) || null;
+        setQrLink(`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${found.id}`);
         setTeam(found);
       } catch (e) {
         console.error(e);
       }
     })();
   }, []);
+
+  useEffect(() => {
+    console.log(`QR-link: ${qrLink}`);
+  }, [qrLink]);
 
   return (
     <ThemedView style={styles.container}>
@@ -59,6 +67,7 @@ export default function TeamPage() {
             <ThemedText style={{ fontWeight: '700', fontSize: 18 }}>{team.name}</ThemedText>
             <ThemedText style={{ color: '#666', marginTop: 8 }}>ID: {team.id}</ThemedText>
             <ThemedText style={{ color: '#666', marginTop: 8 }}>Колір: {team.color}</ThemedText>
+            {qrLink ? <Image source={{ uri: qrLink }} style={{ width: 150, height: 150 }} /> : "No image!"}
           </View>
         ) : (
           <ThemedText style={{ marginTop: 12, color: '#666' }}>Команда не знайдена.</ThemedText>
@@ -89,7 +98,7 @@ export default function TeamPage() {
                   ))
                 ) : null}
 
-                <TouchableOpacity style={styles.addUserButton} onPress={() => {}}>
+                <TouchableOpacity style={styles.addUserButton} onPress={() => { }}>
                   <ThemedText style={{ color: '#007AFF', fontWeight: '700' }}>+ Додати користувача</ThemedText>
                 </TouchableOpacity>
               </View>
@@ -108,7 +117,7 @@ export default function TeamPage() {
 function SidebarUserItem({ user, label }: { user: any; label?: string }) {
   let displayName = user ? `${user.firstName ?? ''}${user.lastName ? ' ' + user.lastName : ''}`.trim() : 'Користувач';
   if (label === 'Керівник' && user?.firstName) displayName = `Ви (${user.firstName})`;
-  const initials = displayName ? displayName.split(' ').map((p: string) => p.charAt(0)).slice(0,2).join('') : '?';
+  const initials = displayName ? displayName.split(' ').map((p: string) => p.charAt(0)).slice(0, 2).join('') : '?';
   return (
     <View style={sideStyles.row}>
       <View style={[sideStyles.avatar, { backgroundColor: '#D8E9FF' }]}>

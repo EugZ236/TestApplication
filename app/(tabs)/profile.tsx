@@ -1,12 +1,14 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/AuthContext';
+import { useAppTheme } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
+  const { theme, setTheme, toggleTheme } = useAppTheme();
   const router = useRouter();
 
   async function handleLogout() {
@@ -29,6 +31,15 @@ export default function ProfilePage() {
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <ThemedText style={styles.logoutText}>Logout</ThemedText>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.themeButton, theme === 'dark' ? styles.themeButtonActive : null]}
+          onPress={() => toggleTheme()}
+        >
+          <ThemedText style={theme === 'dark' ? styles.themeButtonTextActive : styles.themeButtonText}>
+            {theme === 'dark' ? 'Темна тема увімкнена' : 'Увімкнути темну тему'}
+          </ThemedText>
+        </TouchableOpacity>
       </View>
     </ThemedView>
   );
@@ -44,4 +55,8 @@ const styles = StyleSheet.create({
   actions: { marginTop: 32, width: '100%', paddingHorizontal: 20 },
   logoutButton: { backgroundColor: '#FF3B30', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   logoutText: { color: '#fff', fontWeight: '700' },
+  themeButton: { marginTop: 12, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#E6EDF6' },
+  themeButtonActive: { backgroundColor: '#11181C', borderColor: '#11181C' },
+  themeButtonText: { color: '#11181C', fontWeight: '700' },
+  themeButtonTextActive: { color: '#fff', fontWeight: '700' },
 });
