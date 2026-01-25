@@ -1,14 +1,17 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/AuthContext';
+import { isValidEmail, validatePassword } from '@/utils/validation';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('Test@gmail.com');
+  const [password, setPassword] = useState('Test12345!');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
@@ -37,6 +40,7 @@ export default function LoginPage() {
             onChangeText={setEmail}
             editable={!isLoading}
           />
+          {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
           <TextInput
             style={styles.input}
             placeholder="Password"
@@ -46,6 +50,7 @@ export default function LoginPage() {
             onChangeText={setPassword}
             editable={!isLoading}
           />
+          {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
         </View>
 
         <TouchableOpacity style={{ alignSelf: 'flex-start', marginBottom: 8 }} onPress={() => {}}>
@@ -55,6 +60,26 @@ export default function LoginPage() {
         <TouchableOpacity
           style={[styles.primaryButton, isLoading && styles.primaryButtonDisabled]}
           onPress={async () => {
+            // clear previous errors
+            setEmailError('');
+            setPasswordError('');
+
+            if (!email || !password) {
+              Alert.alert('Error', 'Please fill both email and password');
+              return;
+            }
+
+            if (!isValidEmail(email)) {
+              setEmailError('Please enter a valid email address');
+              return;
+            }
+
+            const pwdValidation = validatePassword(password);
+            if (!pwdValidation.valid) {
+              setPasswordError(pwdValidation.message || 'Invalid password');
+              return;
+            }
+
             setIsLoading(true);
             try {
               await login(email, password);
@@ -196,5 +221,10 @@ const styles = StyleSheet.create({
   },
   primaryButtonDisabled: {
     opacity: 0.6,
+  },
+  errorText: {
+    color: '#D9534F',
+    marginTop: 4,
+    fontSize: 12,
   },
 });
