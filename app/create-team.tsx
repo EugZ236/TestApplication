@@ -1,63 +1,82 @@
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-
-const TEAM_STORAGE_KEY = 'teams_v1';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import teamService from "@/src/services/teamService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function CreateTeamPage() {
   const router = useRouter();
-  const [name, setName] = useState('');
-  const [color, setColor] = useState('#7FB3FF');
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("#7FB3FF");
   const [isSaving, setIsSaving] = useState(false);
-  const [createContext, setCreateContext] = useState<'post_signup' | 'fab' | null>(null);
+  const [createContext, setCreateContext] = useState<
+    "post_signup" | "fab" | null
+  >(null);
 
-  const presetColors = ['#7FB3FF', '#FFC37F', '#B6E3B6', '#F7A6D0', '#D0C8FF'];
+  const presetColors = ["#7FB3FF", "#FFC37F", "#B6E3B6", "#F7A6D0", "#D0C8FF"];
 
   async function saveTeam() {
     if (!name.trim()) {
-      alert('Будь ласка, введіть назву команди');
+      Alert.alert("Помилка", "Будь ласка, введіть назву команди");
       return;
     }
 
     setIsSaving(true);
     try {
-      const existing = await AsyncStorage.getItem(TEAM_STORAGE_KEY);
-      const teams = existing ? JSON.parse(existing) : [];
-      const newTeam = {
-        id: `team_${Date.now()}`,
-        name: name.trim(),
-        color,
-      };
-      teams.unshift(newTeam);
-      await AsyncStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(teams));
-      // clear transient context and navigate
-      try { await AsyncStorage.removeItem('create_context'); } catch (e) {}
-      router.replace('/(tabs)');
-    } catch (e) {
-      console.error(e);
-      alert('Не вдалося зберегти команду');
+      // 1. Виклик API через сервіс
+      // Передаємо тільки name, оскільки ваш бекенд (згідно зі Swagger) очікує лише його
+      await teamService.createTeam(name.trim());
+
+      // 2. Очищення тимчасового контексту створення (якщо він був)
+      try {
+        await AsyncStorage.removeItem("create_context");
+      } catch (e) {
+        console.warn("Не вдалося очистити create_context");
+      }
+
+      // 3. Перехід на головний екран
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      console.error("Помилка при створенні команди:", e);
+
+      // Виводимо детальну помилку від сервера, якщо вона є
+      const serverMessage =
+        e.response?.data?.message || "Не вдалося зберегти команду на сервері";
+      Alert.alert("Сталася помилка", serverMessage);
     } finally {
       setIsSaving(false);
     }
   }
 
+  /**
+   * Визначення контексту (чи ми щойно зареєструвалися, чи натиснули кнопку "+" на головній)
+   */
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const ctx = await AsyncStorage.getItem('create_context');
+        const ctx = await AsyncStorage.getItem("create_context");
         if (!mounted) return;
-        if (ctx === 'post_signup') setCreateContext('post_signup');
-        else setCreateContext('fab');
+        if (ctx === "post_signup") setCreateContext("post_signup");
+        else setCreateContext("fab");
       } catch (e) {
         if (!mounted) return;
-        setCreateContext('fab');
+        setCreateContext("fab");
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (
@@ -76,6 +95,7 @@ export default function CreateTeamPage() {
           onChangeText={setName}
           placeholder="Family"
           style={styles.input}
+          editable={!isSaving}
         />
 
         <Text style={[styles.label, { marginTop: 12 }]}>Icon color</Text>
@@ -83,29 +103,47 @@ export default function CreateTeamPage() {
           {presetColors.map((c) => (
             <TouchableOpacity
               key={c}
-              style={[styles.colorSwatch, { backgroundColor: c, borderWidth: c === color ? 2 : 0 }]}
+              style={[
+                styles.colorSwatch,
+                { backgroundColor: c },
+                c === color && styles.selectedSwatch,
+              ]}
               onPress={() => setColor(c)}
+              disabled={isSaving}
             />
           ))}
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity style={[styles.primaryButton, isSaving && { opacity: 0.6 }]} onPress={saveTeam} disabled={isSaving}>
-            <Text style={styles.primaryButtonText}>Create</Text>
+          <TouchableOpacity
+            style={[styles.primaryButton, isSaving && styles.disabledButton]}
+            onPress={saveTeam}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Create</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.ghostButton}
             onPress={async () => {
-              try { await AsyncStorage.removeItem('create_context'); } catch (e) {}
-              if (createContext === 'post_signup') {
-                router.replace('/(tabs)');
+              try {
+                await AsyncStorage.removeItem("create_context");
+              } catch (e) {}
+              if (createContext === "post_signup") {
+                router.replace("/(tabs)");
               } else {
                 router.back();
               }
             }}
+            disabled={isSaving}
           >
-            <Text style={styles.ghostButtonText}>{createContext === 'post_signup' ? 'Skip' : 'Back'}</Text>
+            <Text style={styles.ghostButtonText}>
+              {createContext === "post_signup" ? "Skip" : "Back"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -116,21 +154,41 @@ export default function CreateTeamPage() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
   form: { marginTop: 16 },
-  label: { color: '#222', marginBottom: 8 },
-  avatarPlaceholder: { alignItems: 'center', marginBottom: 12 },
+  label: { color: "#222", marginBottom: 8 },
+  avatarPlaceholder: { alignItems: "center", marginBottom: 12 },
   avatar: { width: 92, height: 92, borderRadius: 46 },
   input: {
     height: 52,
     borderWidth: 1,
-    borderColor: '#D0D7E6',
+    borderColor: "#D0D7E6",
     borderRadius: 10,
     paddingHorizontal: 12,
+    backgroundColor: "#fff",
   },
-  colorRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  colorSwatch: { width: 40, height: 40, borderRadius: 20 },
+  colorRow: { flexDirection: "row", gap: 12, marginTop: 8 },
+  colorSwatch: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 0,
+  },
+  selectedSwatch: {
+    borderWidth: 3,
+    borderColor: "#000",
+  },
   actions: { marginTop: 24, gap: 12 },
-  primaryButton: { backgroundColor: '#007AFF', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  primaryButtonText: { color: '#fff', fontWeight: '600' },
-  ghostButton: { marginTop: 8, alignItems: 'center' },
-  ghostButtonText: { color: '#007AFF', fontWeight: '600' },
+  primaryButton: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  primaryButtonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  ghostButton: { marginTop: 8, alignItems: "center" },
+  ghostButtonText: { color: "#007AFF", fontWeight: "600" },
 });
