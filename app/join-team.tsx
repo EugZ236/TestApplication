@@ -1,37 +1,65 @@
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
-
-const TEAM_STORAGE_KEY = 'teams_v1';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import teamService from "@/src/services/teamService";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+} from "react-native";
 
 export default function JoinTeamPage() {
+  const { code: urlCode } = useLocalSearchParams();
+
   const router = useRouter();
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    if (urlCode) {
+      setCode(urlCode as string);
+    }
+  }, [urlCode]);
   async function handleJoin() {
-    if (!code.trim()) {
-      Alert.alert('Помилка', 'Будь ласка, введіть код');
+    const trimmedCode = code.trim();
+
+    if (!trimmedCode) {
+      Alert.alert("Помилка", "Будь ласка, введіть код інвайту");
       return;
     }
+
     setIsLoading(true);
     try {
-      const raw = await AsyncStorage.getItem(TEAM_STORAGE_KEY);
-      const list = raw ? JSON.parse(raw) : [];
-      // Accept either exact team id or case-insensitive team name as code
-      const team = list.find((t: any) => t.id === code.trim() || t.name.toLowerCase() === code.trim().toLowerCase());
-      if (!team) {
-        Alert.alert('Не знайдено', 'Команду з таким кодом не знайдено');
-        return;
-      }
-      // Simulate joining: in a real app we'd call API / add membership
-      Alert.alert('Успіх', `Ви приєдналися до команди "${team.name}"`, [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]);
-    } catch (e) {
+      const result = await teamService.joinTeam(trimmedCode);
+
+      Alert.alert("Успіх", `Ви приєдналися до команди "${result.teamName}"`, [
+        { text: "Чудово", onPress: () => router.replace("/(tabs)") },
+      ]);
+    } catch (e: any) {
       console.error(e);
-      Alert.alert('Помилка', 'Щось пішло не так');
+
+      const status = e.response?.status;
+      let errorMessage = "Щось пішло не так. Спробуйте пізніше.";
+
+      if (status === 404) {
+        errorMessage =
+          "Команду з таким кодом не знайдено. Перевірте правильність вводу.";
+      } else if (status === 409) {
+        errorMessage = "Ви вже є учасником цієї команди.";
+      } else if (status === 400) {
+        errorMessage = "Невірний код інвайту.";
+      } else if (e.response?.data) {
+        errorMessage =
+          typeof e.response.data === "string"
+            ? e.response.data
+            : e.response.data.message;
+      }
+
+      Alert.alert("Помилка", errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -46,19 +74,34 @@ export default function JoinTeamPage() {
       <TextInput
         value={code}
         onChangeText={setCode}
-        placeholder="Код інвайту"
+        placeholder="Наприклад: IVQKUI0M"
         style={styles.input}
-        autoCapitalize="none"
+        autoCapitalize="characters"
         autoCorrect={false}
+        editable={!isLoading}
       />
 
-      <TouchableOpacity style={styles.primaryButton} onPress={handleJoin} disabled={isLoading}>
-        <Text style={styles.primaryButtonText}>{isLoading ? '...' : 'Приєднатися'}</Text>
+      <TouchableOpacity
+        style={[styles.primaryButton, isLoading && { opacity: 0.7 }]}
+        onPress={handleJoin}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.primaryButtonText}>Приєднатися</Text>
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.ghostButton, { marginTop: 16 }]}
-        onPress={() => Alert.alert('Заглушка', 'Сканування QR ще не реалізовано. Тут буде функція сканування QR-коду.')}
+        onPress={() =>
+          Alert.alert(
+            "Інфо",
+            "Функція сканування QR-коду буде доступна в наступних оновленнях.",
+          )
+        }
+        disabled={isLoading}
       >
         <Text style={styles.ghostButtonText}>Приєднатися за QR</Text>
       </TouchableOpacity>
@@ -68,10 +111,27 @@ export default function JoinTeamPage() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
-  instruction: { color: '#666', marginTop: 12, marginBottom: 8 },
-  input: { height: 52, borderWidth: 1, borderColor: '#D0D7E6', borderRadius: 10, paddingHorizontal: 12, marginTop: 8 },
-  primaryButton: { backgroundColor: '#007AFF', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 16 },
-  primaryButtonText: { color: '#fff', fontWeight: '600' },
-  ghostButton: { alignItems: 'center' },
-  ghostButtonText: { color: '#007AFF', fontWeight: '600' },
+  instruction: { color: "#666", marginTop: 12, marginBottom: 8 },
+  input: {
+    height: 52,
+    borderWidth: 1,
+    borderColor: "#D0D7E6",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    backgroundColor: "#fff",
+    fontSize: 16,
+  },
+  primaryButton: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 16,
+    minHeight: 50,
+    justifyContent: "center",
+  },
+  primaryButtonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  ghostButton: { alignItems: "center", padding: 10 },
+  ghostButtonText: { color: "#007AFF", fontWeight: "600" },
 });

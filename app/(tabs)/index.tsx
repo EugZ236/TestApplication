@@ -2,8 +2,10 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import teamService from "@/src/services/teamService";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -12,6 +14,7 @@ import {
   FlatList,
   Modal,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -65,6 +68,30 @@ export default function TeamsScreen() {
       setIsRefreshing(false);
     }
   }
+
+  // --- НОВІ ФУНКЦІЇ ---
+  const copyInviteCode = async (code: string) => {
+    if (!code) return;
+    await Clipboard.setStringAsync(code);
+    setMenuVisible(false);
+    Alert.alert("Скопійовано", "Код інвайту додано в буфер обміну");
+  };
+
+  const shareInviteCode = async (teamName: string, code: string) => {
+    if (!code) return;
+
+    const webLink = `https://rilking1.github.io/smartmeal-link/?code=${code}`;
+
+    try {
+      await Share.share({
+        title: "Запрошення в SmartMeal",
+        message: `Приєднуйся до моєї команди "${teamName}" у SmartMeal!\n\nТисни сюди для входу:\n${webLink}`,
+      });
+    } catch (error: any) {
+      console.error(error);
+    }
+  };
+  // --------------------
 
   function openMenu(team: any, x?: number, y?: number) {
     setSelectedTeam(team);
@@ -226,7 +253,7 @@ export default function TeamsScreen() {
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
-      {/* Menu Modal */}
+      {/* Menu Modal (Popover) */}
       <Modal
         visible={menuVisible}
         animationType="fade"
@@ -244,22 +271,66 @@ export default function TeamsScreen() {
                 styles.popoverContainer,
                 {
                   top: Math.round(menuPos.y - 24),
-                  left: Math.max(8, Math.min(menuPos.x - 152, 200)),
+                  left: Math.max(8, Math.min(menuPos.x - 170, 200)), // Трохи збільшив ширину
                 },
               ]}
             >
               <View style={styles.popoverCard}>
-                <Text style={styles.popoverTitle}>{selectedTeam?.name}</Text>
+                <Text style={styles.popoverTitle} numberOfLines={1}>
+                  {selectedTeam?.name}
+                </Text>
+
                 <TouchableOpacity style={styles.popoverRow} onPress={openInfo}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={18}
+                    color="#444"
+                  />
                   <Text style={styles.popoverText}>Інформація</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.popoverRow} onPress={openEdit}>
-                  <Text style={styles.popoverText}>Редагувати</Text>
-                </TouchableOpacity>
+
                 <TouchableOpacity
                   style={styles.popoverRow}
+                  onPress={() => copyInviteCode(selectedTeam?.inviteCode)}
+                >
+                  <Ionicons name="copy-outline" size={18} color="#007AFF" />
+                  <Text style={[styles.popoverText, { color: "#007AFF" }]}>
+                    Копіювати код
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.popoverRow}
+                  onPress={() =>
+                    shareInviteCode(
+                      selectedTeam?.name,
+                      selectedTeam?.inviteCode,
+                    )
+                  }
+                >
+                  <Ionicons
+                    name="share-social-outline"
+                    size={18}
+                    color="#28A745"
+                  />
+                  <Text style={[styles.popoverText, { color: "#28A745" }]}>
+                    Поділитися
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.popoverRow} onPress={openEdit}>
+                  <Ionicons name="create-outline" size={18} color="#444" />
+                  <Text style={styles.popoverText}>Редагувати</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.popoverRow,
+                    { borderTopWidth: 1, borderTopColor: "#eee", marginTop: 4 },
+                  ]}
                   onPress={() => confirmDelete(selectedTeam?.id)}
                 >
+                  <Ionicons name="trash-outline" size={18} color="#D9534F" />
                   <Text style={[styles.popoverText, { color: "#D9534F" }]}>
                     Видалити
                   </Text>
@@ -278,29 +349,69 @@ export default function TeamsScreen() {
         onRequestClose={() => setInfoVisible(false)}
       >
         <ThemedView style={{ flex: 1, padding: 20 }}>
-          <ThemedText type="title">Інформація про команду</ThemedText>
-          <View style={{ marginTop: 20 }}>
-            <Text style={{ fontWeight: "700", fontSize: 18 }}>
-              {selectedTeam?.name}
-            </Text>
-            <Text style={{ color: "#666", marginTop: 8 }}>
-              Invite Code: {selectedTeam?.inviteCode}
-            </Text>
-            <Text style={{ color: "#666", marginTop: 8 }}>
-              Роль: {selectedTeam?.role}
-            </Text>
-            <Text style={{ color: "#666", marginTop: 8 }}>
-              Учасників: {selectedTeam?.memberCount}
-            </Text>
-          </View>
-          <View style={{ marginTop: 24 }}>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => setInfoVisible(false)}
-            >
-              <Text style={styles.primaryButtonText}>Назад</Text>
+          <View style={styles.infoModalHeader}>
+            <ThemedText type="title">Команда</ThemedText>
+            <TouchableOpacity onPress={() => setInfoVisible(false)}>
+              <Ionicons name="close" size={28} color="#333" />
             </TouchableOpacity>
           </View>
+
+          <View style={styles.infoCard}>
+            <View
+              style={[
+                styles.largeIcon,
+                { backgroundColor: getAvatarColor(selectedTeam?.name || "") },
+              ]}
+            >
+              <Text style={styles.largeIconText}>
+                {selectedTeam?.name?.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+
+            <Text style={styles.infoTeamName}>{selectedTeam?.name}</Text>
+
+            <View style={styles.infoDetailRow}>
+              <Text style={styles.infoLabel}>Invite Code:</Text>
+              <Text style={styles.infoValue}>{selectedTeam?.inviteCode}</Text>
+            </View>
+
+            <View style={styles.infoDetailRow}>
+              <Text style={styles.infoLabel}>Ваша роль:</Text>
+              <Text style={styles.infoValue}>{selectedTeam?.role}</Text>
+            </View>
+
+            <View style={styles.infoDetailRow}>
+              <Text style={styles.infoLabel}>Учасників:</Text>
+              <Text style={styles.infoValue}>{selectedTeam?.memberCount}</Text>
+            </View>
+
+            <View style={styles.infoActions}>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: "#007AFF" }]}
+                onPress={() => copyInviteCode(selectedTeam?.inviteCode)}
+              >
+                <Ionicons name="copy" size={20} color="#fff" />
+                <Text style={styles.actionButtonText}>Копіювати</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: "#28A745" }]}
+                onPress={() =>
+                  shareInviteCode(selectedTeam?.name, selectedTeam?.inviteCode)
+                }
+              >
+                <Ionicons name="share-social" size={20} color="#fff" />
+                <Text style={styles.actionButtonText}>Поділитися</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => setInfoVisible(false)}
+          >
+            <Text style={styles.backButtonText}>Закрити</Text>
+          </TouchableOpacity>
         </ThemedView>
       </Modal>
     </ThemedView>
@@ -355,32 +466,82 @@ const styles = StyleSheet.create({
   },
   createButtonText: { color: "#fff", fontWeight: "600" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.05)" },
-  popoverContainer: { position: "absolute", width: 160 },
+  popoverContainer: { position: "absolute", width: 180 },
   popoverCard: {
     backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 12,
-    elevation: 6,
+    borderRadius: 12,
+    padding: 8,
+    elevation: 10,
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
   },
   popoverTitle: {
-    fontWeight: "700",
+    fontWeight: "800",
     marginBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
-    paddingBottom: 4,
+    paddingBottom: 6,
+    paddingHorizontal: 4,
+    fontSize: 14,
+    color: "#333",
   },
-  popoverRow: { paddingVertical: 10 },
-  popoverText: { fontSize: 15 },
-  primaryButton: {
-    backgroundColor: "#007AFF",
-    padding: 14,
-    borderRadius: 10,
+  popoverRow: {
+    flexDirection: "row",
     alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    gap: 10,
   },
-  primaryButtonText: { color: "#fff", fontWeight: "600" },
+  popoverText: { fontSize: 14, fontWeight: "500" },
+
+  // Info Modal Styles
+  infoModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  infoCard: {
+    backgroundColor: "#F8F9FA",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  largeIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  largeIconText: { color: "#fff", fontSize: 32, fontWeight: "800" },
+  infoTeamName: { fontSize: 24, fontWeight: "800", marginBottom: 20 },
+  infoDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 12,
+  },
+  infoLabel: { color: "#666", fontWeight: "600" },
+  infoValue: { fontWeight: "700", color: "#333" },
+  infoActions: { flexDirection: "row", gap: 12, marginTop: 24, width: "100%" },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  actionButtonText: { color: "#fff", fontWeight: "700" },
+  backButton: { marginTop: 20, alignItems: "center", padding: 16 },
+  backButtonText: { color: "#007AFF", fontWeight: "700", fontSize: 16 },
+
   fab: {
     position: "absolute",
     right: 16,
@@ -392,6 +553,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   fabText: { color: "#fff", fontSize: 28 },
 });
