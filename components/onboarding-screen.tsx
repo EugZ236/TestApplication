@@ -1,8 +1,14 @@
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ThemedText } from './themed-text';
-import { ThemedView } from './themed-view';
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import {
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { ThemedText } from "./themed-text";
+import { ThemedView } from "./themed-view";
 
 interface OnboardingScreenProps {
   title: string;
@@ -14,7 +20,7 @@ interface OnboardingScreenProps {
   isLastScreen: boolean;
 }
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function OnboardingScreen({
   title,
@@ -34,7 +40,9 @@ export default function OnboardingScreen({
 
       {/* Top info */}
       <View style={styles.topSection}>
-        <Text style={styles.progressText}>Onboarding {Math.round(progress)}%</Text>
+        <Text style={styles.progressText}>
+          Onboarding {Math.round(progress)}%
+        </Text>
       </View>
 
       {/* Icon/Illustration */}
@@ -49,9 +57,7 @@ export default function OnboardingScreen({
         <ThemedText type="title" style={styles.title}>
           {title}
         </ThemedText>
-        <ThemedText style={styles.description}>
-          {description}
-        </ThemedText>
+        <ThemedText style={styles.description}>{description}</ThemedText>
       </View>
 
       {/* Buttons */}
@@ -62,7 +68,7 @@ export default function OnboardingScreen({
           activeOpacity={0.7}
         >
           <Text style={styles.nextButtonText}>
-            {isLastScreen ? 'Get Started' : 'Next'}
+            {isLastScreen ? "Get Started" : "Next"}
           </Text>
         </TouchableOpacity>
 
@@ -84,55 +90,55 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 40,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   progressContainer: {
     height: 4,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: "#E0E0E0",
     borderRadius: 2,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 20,
   },
   progressBar: {
-    height: '100%',
-    backgroundColor: '#007AFF',
+    height: "100%",
+    backgroundColor: "#007AFF",
     borderRadius: 2,
   },
   topSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   progressText: {
     fontSize: 14,
-    color: '#999',
+    color: "#999",
   },
   illustrationContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginVertical: 40,
   },
   iconCircle: {
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: '#F5F5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F5F5F5",
+    justifyContent: "center",
+    alignItems: "center",
   },
   contentContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 40,
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: "700",
+    textAlign: "center",
     marginBottom: 16,
   },
   description: {
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 24,
     opacity: 0.7,
   },
@@ -140,26 +146,26 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   nextButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     paddingVertical: 16,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   nextButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   skipButton: {
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: "#007AFF",
     paddingVertical: 16,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   skipButtonText: {
-    color: '#007AFF',
+    color: "#007AFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
