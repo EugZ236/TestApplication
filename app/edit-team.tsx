@@ -1,9 +1,12 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import teamService from "@/src/services/teamService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -11,94 +14,115 @@ import {
   View,
 } from "react-native";
 
-const TEAM_STORAGE_KEY = "teams_v1";
+// Функція генерації кольору (така ж, як в index.tsx)
+const getAvatarColor = (name: string) => {
+  const colors = ["#7FB3FF", "#FFC37F", "#B6E3B6", "#F7A6D0", "#D0C8FF"];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
 
 export default function EditTeamPage() {
   const router = useRouter();
-  const [id, setId] = useState<string | null>(null);
+  const [id, setId] = useState<number | null>(null);
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#7FB3FF");
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  const presetColors = ["#7FB3FF", "#FFC37F", "#B6E3B6", "#F7A6D0", "#D0C8FF"];
-
   useEffect(() => {
-    (async () => {
-      const storedId = await AsyncStorage.getItem("edit_team_id");
-      if (!storedId) {
-        alert("Команду не знайдено");
-        router.replace("/(tabs)");
-        return;
-      }
-      setId(storedId);
-      const raw = await AsyncStorage.getItem(TEAM_STORAGE_KEY);
-      const list = raw ? JSON.parse(raw) : [];
-      const team = list.find((t: any) => t.id === storedId);
-      if (!team) {
-        alert("Команду не знайдено");
-        router.replace("/(tabs)");
-        return;
-      }
-      setName(team.name || "");
-      setColor(team.color || "#7FB3FF");
-    })();
+    fetchTeamData();
   }, []);
 
+  async function fetchTeamData() {
+    try {
+      const storedId = await AsyncStorage.getItem("edit_team_id");
+      if (!storedId) {
+        Alert.alert("Помилка", "ID команди не знайдено");
+        router.replace("/(tabs)");
+        return;
+      }
+
+      const teamId = Number(storedId);
+      setId(teamId);
+
+      const teams = await teamService.getTeams();
+      const team = teams.find((t: any) => t.id === teamId);
+
+      if (!team) {
+        Alert.alert("Помилка", "Команду не знайдено");
+        router.replace("/(tabs)");
+        return;
+      }
+
+      setName(team.name || "");
+    } catch (e) {
+      Alert.alert("Помилка", "Не вдалося завантажити дані");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   async function saveTeam() {
-    if (!name.trim()) {
-      alert("Будь ласка, введіть назву команди");
+    if (!name.trim() || !id) {
+      Alert.alert("Увага", "Назва команди не може бути порожньою");
       return;
     }
+
     setIsSaving(true);
     try {
-      const raw = await AsyncStorage.getItem(TEAM_STORAGE_KEY);
-      const list = raw ? JSON.parse(raw) : [];
-      const newList = list.map((t: any) =>
-        t.id === id ? { ...t, name: name.trim(), color } : t,
-      );
-      // clear transient edit id
+      await teamService.updateTeam(id, name.trim());
       await AsyncStorage.removeItem("edit_team_id");
-      await AsyncStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(newList));
-      router.replace("/(tabs)");
-    } catch (e) {
-      console.error(e);
-      alert("Не вдалося зберегти зміни");
+
+      Alert.alert("Успіх", "Назву команди змінено", [
+        { text: "OK", onPress: () => router.replace("/(tabs)") },
+      ]);
+    } catch (e: any) {
+      const msg =
+        e.response?.status === 403
+          ? "Тільки власник може редагувати назву"
+          : "Помилка при збереженні";
+      Alert.alert("Помилка", msg);
     } finally {
       setIsSaving(false);
     }
   }
+
+  if (isLoading) {
+    return (
+      <ThemedView style={styles.center}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </ThemedView>
+    );
+  }
+
+  // Обчислюємо колір на основі поточної назви в інпуті
+  const currentColor = getAvatarColor(name);
 
   return (
     <ThemedView style={styles.container}>
       <ThemedText type="title">Edit team</ThemedText>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Team photo</Text>
+        <Text style={styles.label}>Team preview</Text>
         <View style={styles.avatarPlaceholder}>
-          <View style={[styles.avatar, { backgroundColor: color }]} />
+          <View style={[styles.avatar, { backgroundColor: currentColor }]}>
+            <Text style={styles.avatarLetter}>
+              {name ? name.charAt(0).toUpperCase() : "?"}
+            </Text>
+          </View>
+          <Text style={styles.hint}>Колір генерується автоматично</Text>
         </View>
 
         <Text style={styles.label}>Team name</Text>
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder="Family"
+          placeholder="Назва команди"
           style={styles.input}
+          maxLength={30}
         />
-
-        <Text style={[styles.label, { marginTop: 12 }]}>Icon color</Text>
-        <View style={styles.colorRow}>
-          {presetColors.map((c) => (
-            <TouchableOpacity
-              key={c}
-              style={[
-                styles.colorSwatch,
-                { backgroundColor: c, borderWidth: c === color ? 2 : 0 },
-              ]}
-              onPress={() => setColor(c)}
-            />
-          ))}
-        </View>
 
         <View style={styles.actions}>
           <TouchableOpacity
@@ -106,14 +130,18 @@ export default function EditTeamPage() {
             onPress={saveTeam}
             disabled={isSaving}
           >
-            <Text style={styles.primaryButtonText}>Save</Text>
+            {isSaving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Save Changes</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.ghostButton}
             onPress={() => router.replace("/(tabs)")}
           >
-            <Text style={styles.ghostButtonText}>Back</Text>
+            <Text style={styles.ghostButtonText}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -122,28 +150,42 @@ export default function EditTeamPage() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  form: { marginTop: 16 },
-  label: { color: "#222", marginBottom: 8 },
-  avatarPlaceholder: { alignItems: "center", marginBottom: 12 },
-  avatar: { width: 92, height: 92, borderRadius: 46 },
+  container: { flex: 1, padding: 20, paddingTop: 60 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  form: { marginTop: 24 },
+  label: { color: "#666", marginBottom: 8, fontWeight: "600" },
+  avatarPlaceholder: { alignItems: "center", marginBottom: 24 },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  avatarLetter: { color: "#fff", fontSize: 40, fontWeight: "800" },
+  hint: { fontSize: 12, color: "#999", marginTop: 8 },
   input: {
-    height: 52,
+    height: 56,
     borderWidth: 1,
     borderColor: "#D0D7E6",
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 17,
+    backgroundColor: "#fff",
+    color: "#000",
   },
-  colorRow: { flexDirection: "row", gap: 12, marginTop: 8 },
-  colorSwatch: { width: 40, height: 40, borderRadius: 20 },
-  actions: { marginTop: 24, gap: 12 },
+  actions: { marginTop: 32, gap: 12 },
   primaryButton: {
     backgroundColor: "#007AFF",
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: "center",
   },
-  primaryButtonText: { color: "#fff", fontWeight: "600" },
-  ghostButton: { marginTop: 8, alignItems: "center" },
-  ghostButtonText: { color: "#007AFF", fontWeight: "600" },
+  primaryButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  ghostButton: { marginTop: 8, alignItems: "center", padding: 12 },
+  ghostButtonText: { color: "#D9534F", fontWeight: "600" },
 });

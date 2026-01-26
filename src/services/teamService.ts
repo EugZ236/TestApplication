@@ -24,6 +24,14 @@ const teamService = {
     const response = await api.post("/Teams/join", { inviteCode });
     return response.data;
   },
+
+  updateTeam: async (id: number, name: string): Promise<void> => {
+    await api.put(`/Teams/${id}`, { name });
+  },
+
+  deleteTeam: async (id: number): Promise<void> => {
+    await api.delete(`/Teams/${id}`);
+  },
 };
 
 export default teamService;

@@ -121,7 +121,7 @@ export default function TeamsScreen() {
   async function confirmDelete(id: number) {
     Alert.alert(
       "Видалити команду",
-      "Ви впевнені, що хочете видалити команду?",
+      "Ви впевнені? Тільки творець команди може це зробити.",
       [
         { text: "Скасувати", style: "cancel" },
         {
@@ -129,10 +129,20 @@ export default function TeamsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              setTeams(teams.filter((t) => t.id !== id));
+              setIsLoading(true);
+              await teamService.deleteTeam(id);
+              setTeams((prev) => prev.filter((t) => t.id !== id));
               closeMenu();
-            } catch (e) {
-              Alert.alert("Помилка", "Не вдалося видалити команду");
+              Alert.alert("Успіх", "Команду видалено");
+            } catch (e: any) {
+              console.error(e);
+              const msg =
+                e.response?.status === 403
+                  ? "У вас немає прав на видалення цієї команди"
+                  : "Не вдалося видалити команду";
+              Alert.alert("Помилка", msg);
+            } finally {
+              setIsLoading(false);
             }
           },
         },
