@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "TestApplication",
-    "slug": "TestApplication",
+    "name": "SmartMeal",
+    "slug": "smart-meal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "testapplication",
+    "scheme": "smartmeal",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.smartmeal"
     },
     "web": {
       "output": "static",

@@ -19,6 +19,11 @@ const teamService = {
     const response = await api.post("/Teams", { name });
     return response.data;
   },
+
+  joinTeam: async (inviteCode: string) => {
+    const response = await api.post("/Teams/join", { inviteCode });
+    return response.data;
+  },
 };
 
 export default teamService;
