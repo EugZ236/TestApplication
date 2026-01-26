@@ -1,24 +1,25 @@
-import OnboardingScreen from '@/components/onboarding-screen';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import OnboardingScreen from "@/components/onboarding-screen";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import { StyleSheet, View } from "react-native";
 
 const ONBOARDING_SCREENS = [
   {
-    title: 'Save up to 30% of your budget',
-    description: 'Track your spending and discover ways to save money effortlessly',
-    icon: 'bar-chart',
+    title: "Save up to 30% of your budget",
+    description:
+      "Track your spending and discover ways to save money effortlessly",
+    icon: "bar-chart",
   },
   {
-    title: 'Never forget what you have at home',
-    description: 'Keep an organized inventory of all your items',
-    icon: 'list',
+    title: "Never forget what you have at home",
+    description: "Keep an organized inventory of all your items",
+    icon: "list",
   },
   {
-    title: 'Plan your shopping together',
-    description: 'Collaborate with family and friends on shopping lists',
-    icon: 'people',
+    title: "Plan your shopping together",
+    description: "Collaborate with family and friends on shopping lists",
+    icon: "people",
   },
 ];
 
@@ -32,14 +33,14 @@ export default function OnboardingPage() {
     if (currentScreen < ONBOARDING_SCREENS.length - 1) {
       setCurrentScreen(currentScreen + 1);
     } else {
-      await AsyncStorage.setItem('onboarding_completed', 'true');
-      router.replace('register' as any);
+      await AsyncStorage.setItem("onboarding_completed", "true");
+      router.replace("register" as any);
     }
   };
 
   const handleSkip = async () => {
-    await AsyncStorage.setItem('onboarding_completed', 'true');
-    router.replace('register' as any);
+    await AsyncStorage.setItem("onboarding_completed", "true");
+    router.replace("register" as any);
   };
 
   const screen = ONBOARDING_SCREENS[currentScreen];

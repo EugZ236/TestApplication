@@ -1,4 +1,4 @@
-declare module 'merge-options' {
+declare module "merge-options" {
   function mergeOptions(...options: any[]): any;
   export = mergeOptions;
 }

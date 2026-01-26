@@ -1,9 +1,9 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
-type ThemeName = 'light' | 'dark' | null;
+type ThemeName = "light" | "dark" | null;
 
-const THEME_KEY = 'app_theme_pref';
+const THEME_KEY = "app_theme_pref";
 
 const ThemeContext = createContext<{
   theme: ThemeName;
@@ -11,16 +11,20 @@ const ThemeContext = createContext<{
   toggleTheme: () => void;
 } | null>(null);
 
-export const AppThemeProvider = ({ children }: { children: React.ReactNode }) => {
+export const AppThemeProvider = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => {
   const [theme, setThemeState] = useState<ThemeName>(null);
 
   useEffect(() => {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(THEME_KEY);
-        if (raw === 'light' || raw === 'dark') setThemeState(raw);
+        if (raw === "light" || raw === "dark") setThemeState(raw);
       } catch (e) {
-        console.error('Failed to load theme pref', e);
+        console.error("Failed to load theme pref", e);
       }
     })();
   }, []);
@@ -31,13 +35,13 @@ export const AppThemeProvider = ({ children }: { children: React.ReactNode }) =>
       if (t === null) AsyncStorage.removeItem(THEME_KEY);
       else AsyncStorage.setItem(THEME_KEY, t);
     } catch (e) {
-      console.error('Failed to save theme pref', e);
+      console.error("Failed to save theme pref", e);
     }
   };
 
   const toggleTheme = () => {
     setThemeState((prev) => {
-      const next = prev === 'dark' ? 'light' : 'dark';
+      const next = prev === "dark" ? "light" : "dark";
       try {
         AsyncStorage.setItem(THEME_KEY, next as string);
       } catch (e) {
@@ -47,12 +51,21 @@ export const AppThemeProvider = ({ children }: { children: React.ReactNode }) =>
     });
   };
 
-  return <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 };
 
 export const useAppTheme = () => {
   const ctx = useContext(ThemeContext);
-  if (!ctx) return { theme: null, setTheme: (_: ThemeName) => {}, toggleTheme: () => {} };
+  if (!ctx)
+    return {
+      theme: null,
+      setTheme: (_: ThemeName) => {},
+      toggleTheme: () => {},
+    };
   return ctx;
 };
 
