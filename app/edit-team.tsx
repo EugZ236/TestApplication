@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import teamService from "@/src/services/teamService";
+import { showToast } from "@/utils/toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -39,7 +40,8 @@ export default function EditTeamPage() {
     try {
       const storedId = await AsyncStorage.getItem("edit_team_id");
       if (!storedId) {
-        Alert.alert("Помилка", "ID команди не знайдено");
+        showToast.error("Помилка", "ID команди не знайдено");
+
         router.replace("/(tabs)");
         return;
       }
@@ -51,14 +53,14 @@ export default function EditTeamPage() {
       const team = teams.find((t: any) => t.id === teamId);
 
       if (!team) {
-        Alert.alert("Помилка", "Команду не знайдено");
+        showToast.error("Помилка", "Команду не знайдено");
         router.replace("/(tabs)");
         return;
       }
 
       setName(team.name || "");
     } catch (e) {
-      Alert.alert("Помилка", "Не вдалося завантажити дані");
+      showToast.error("Помилка", "Не вдалося завантажити дані");
     } finally {
       setIsLoading(false);
     }
@@ -66,7 +68,7 @@ export default function EditTeamPage() {
 
   async function saveTeam() {
     if (!name.trim() || !id) {
-      Alert.alert("Увага", "Назва команди не може бути порожньою");
+      showToast.error("Увага", "Назва команди не може бути порожньою");
       return;
     }
 
@@ -83,7 +85,7 @@ export default function EditTeamPage() {
         e.response?.status === 403
           ? "Тільки власник може редагувати назву"
           : "Помилка при збереженні";
-      Alert.alert("Помилка", msg);
+      showToast.error("Помилка", msg);
     } finally {
       setIsSaving(false);
     }

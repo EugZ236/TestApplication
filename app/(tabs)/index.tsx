@@ -2,6 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useTeamStore } from "@/src/store/useTeamStore";
+import { showToast } from "@/utils/toast";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
@@ -53,7 +54,7 @@ export default function TeamsScreen() {
     if (!code) return;
     await Clipboard.setStringAsync(code);
     setMenuVisible(false);
-    Alert.alert("Скопійовано", "Код інвайту додано в буфер обміну");
+    showToast.info("Скопійовано", "Код інвайту вже у вашому буфері 📋");
   };
 
   const shareInviteCode = async (teamName: string, code: string) => {
@@ -107,13 +108,13 @@ export default function TeamsScreen() {
             try {
               await deleteTeam(id);
               closeMenu();
-              Alert.alert("Успіх", "Команду видалено");
+              showToast.success("Успішно", "Команду видалено 👋");
             } catch (e: any) {
               const msg =
                 e.response?.status === 403
                   ? "У вас немає прав на видалення"
                   : "Не вдалося видалити команду";
-              Alert.alert("Помилка", msg);
+              showToast.error("Помилка", msg);
             }
           },
         },

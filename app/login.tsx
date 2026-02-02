@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import { showToast } from "@/utils/toast";
 import { isValidEmail, validatePassword } from "@/utils/validation";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -83,7 +84,8 @@ export default function LoginPage() {
             setPasswordError("");
 
             if (!email || !password) {
-              Alert.alert("Error", "Please fill both email and password");
+              showToast.error("Error", "Please fill both email and password");
+
               return;
             }
 

@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import teamService from "@/src/services/teamService";
+import { showToast } from "@/utils/toast";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -28,7 +29,7 @@ export default function JoinTeamPage() {
     const trimmedCode = code.trim();
 
     if (!trimmedCode) {
-      Alert.alert("Помилка", "Будь ласка, введіть код інвайту");
+      showToast.error("Помилка", "Будь ласка, введіть код інвайту");
       return;
     }
 
@@ -59,7 +60,7 @@ export default function JoinTeamPage() {
             : e.response.data.message;
       }
 
-      Alert.alert("Помилка", errorMessage);
+      showToast.error("Помилка", errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -96,7 +97,7 @@ export default function JoinTeamPage() {
       <TouchableOpacity
         style={[styles.ghostButton, { marginTop: 16 }]}
         onPress={() =>
-          Alert.alert(
+          showToast.info(
             "Інфо",
             "Функція сканування QR-коду буде доступна в наступних оновленнях.",
           )

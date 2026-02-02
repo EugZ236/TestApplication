@@ -1,5 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { showToast } from "@/utils/toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
@@ -45,7 +46,7 @@ export default function BudgetPage() {
   async function saveBudget() {
     const value = parseFloat(amountInput.replace(",", "."));
     if (isNaN(value) || value <= 0) {
-      Alert.alert("Неправильна сума", "Введіть коректну суму бюджету");
+      showToast.error("Неправильна сума", "Введіть коректну суму бюджету");
       return;
     }
     const newBudget = { amount: value, currency };
@@ -55,7 +56,7 @@ export default function BudgetPage() {
       setModalVisible(false);
     } catch (e) {
       console.error(e);
-      Alert.alert("Помилка", "Не вдалося зберегти бюджет");
+      showToast.error("Помилка", "Не вдалося зберегти бюджет");
     }
   }
 

@@ -1,12 +1,12 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import teamService from "@/src/services/teamService";
+import { showToast } from "@/utils/toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -27,7 +27,7 @@ export default function CreateTeamPage() {
 
   async function saveTeam() {
     if (!name.trim()) {
-      Alert.alert("Помилка", "Будь ласка, введіть назву команди");
+      showToast.error("Помилка", "Будь ласка, введіть назву команди");
       return;
     }
 
@@ -52,7 +52,7 @@ export default function CreateTeamPage() {
       // Виводимо детальну помилку від сервера, якщо вона є
       const serverMessage =
         e.response?.data?.message || "Не вдалося зберегти команду на сервері";
-      Alert.alert("Сталася помилка", serverMessage);
+      showToast.error("Помилка", serverMessage);
     } finally {
       setIsSaving(false);
     }
