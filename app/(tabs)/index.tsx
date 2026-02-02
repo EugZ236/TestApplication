@@ -1,7 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import teamService from "@/src/services/teamService";
+import { useTeamStore } from "@/src/store/useTeamStore";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
@@ -33,14 +33,13 @@ const getAvatarColor = (name: string) => {
 
 export default function TeamsScreen() {
   const router = useRouter();
-  const [teams, setTeams] = useState<Array<any>>([]);
+  const { teams, isLoading, fetchTeams, deleteTeam } = useTeamStore();
   const [query, setQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
-      loadTeams();
+      fetchTeams();
     }, []),
   );
 
@@ -50,26 +49,6 @@ export default function TeamsScreen() {
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
 
-  async function loadTeams() {
-    setIsLoading(true);
-    try {
-      const data = await teamService.getTeams();
-      setTeams(data);
-    } catch (e: any) {
-      console.error("Помилка завантаження:", e);
-      if (e.response?.status === 401) {
-        Alert.alert("Сесія завершена", "Будь ласка, увійдіть знову");
-        router.replace("/login");
-      } else {
-        Alert.alert("Помилка", "Не вдалося завантажити список команд");
-      }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }
-
-  // --- НОВІ ФУНКЦІЇ ---
   const copyInviteCode = async (code: string) => {
     if (!code) return;
     await Clipboard.setStringAsync(code);
@@ -79,19 +58,16 @@ export default function TeamsScreen() {
 
   const shareInviteCode = async (teamName: string, code: string) => {
     if (!code) return;
-
     const webLink = `https://rilking1.github.io/smartmeal-link/?code=${code}`;
-
     try {
       await Share.share({
         title: "Запрошення в SmartMeal",
-        message: `Приєднуйся до моєї команди "${teamName}" у SmartMeal!\n\nТисни сюди для входу:\n${webLink}`,
+        message: `Приєднуйся до моєї команди "${teamName}" у SmartMeal!\n\n${webLink}`,
       });
     } catch (error: any) {
       console.error(error);
     }
   };
-  // --------------------
 
   function openMenu(team: any, x?: number, y?: number) {
     setSelectedTeam(team);
@@ -129,20 +105,15 @@ export default function TeamsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              setIsLoading(true);
-              await teamService.deleteTeam(id);
-              setTeams((prev) => prev.filter((t) => t.id !== id));
+              await deleteTeam(id);
               closeMenu();
               Alert.alert("Успіх", "Команду видалено");
             } catch (e: any) {
-              console.error(e);
               const msg =
                 e.response?.status === 403
-                  ? "У вас немає прав на видалення цієї команди"
+                  ? "У вас немає прав на видалення"
                   : "Не вдалося видалити команду";
               Alert.alert("Помилка", msg);
-            } finally {
-              setIsLoading(false);
             }
           },
         },
@@ -160,11 +131,8 @@ export default function TeamsScreen() {
         <ThemedText type="title">Teams</ThemedText>
         <TouchableOpacity
           onPress={() => {
-            setShowSearch((prev) => {
-              const next = !prev;
-              if (prev) setQuery("");
-              return next;
-            });
+            setShowSearch(!showSearch);
+            if (showSearch) setQuery("");
           }}
         >
           <IconSymbol name="magnifyingglass" size={22} color="#666" />
@@ -194,9 +162,10 @@ export default function TeamsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
-              onRefresh={() => {
+              onRefresh={async () => {
                 setIsRefreshing(true);
-                loadTeams();
+                await fetchTeams();
+                setIsRefreshing(false);
               }}
             />
           }
@@ -207,7 +176,6 @@ export default function TeamsScreen() {
                 await AsyncStorage.setItem("view_team_id", String(item.id));
                 router.push("/team");
               }}
-              activeOpacity={0.8}
             >
               <View
                 style={[
@@ -227,10 +195,9 @@ export default function TeamsScreen() {
               </View>
               <TouchableOpacity
                 style={styles.moreButton}
-                onPressIn={(e) => {
-                  const { pageX, pageY } = e.nativeEvent;
-                  openMenu(item, pageX, pageY);
-                }}
+                onPressIn={(e) =>
+                  openMenu(item, e.nativeEvent.pageX, e.nativeEvent.pageY)
+                }
               >
                 <IconSymbol name="ellipsis" size={18} color="#333" />
               </TouchableOpacity>
@@ -239,9 +206,6 @@ export default function TeamsScreen() {
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyTitle}>Nothing here. For now.</Text>
-              <Text style={styles.emptySubtitle}>
-                This is where you’ll find your teams.
-              </Text>
               <TouchableOpacity
                 style={styles.createButton}
                 onPress={() => router.push("/create-team")}
@@ -263,7 +227,6 @@ export default function TeamsScreen() {
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
-      {/* Menu Modal (Popover) */}
       <Modal
         visible={menuVisible}
         animationType="fade"
