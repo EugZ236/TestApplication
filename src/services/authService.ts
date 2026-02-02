@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store"; // Замінили AsyncStorage
 import api from "./api";
 
 export interface RegisterData {
@@ -8,13 +8,11 @@ export interface RegisterData {
   lastName: string;
 }
 
-export interface RegisterResponse {
-  message: string;
-}
-
-export interface LoginResponse {
+export interface AuthResponse {
   token: string;
-  user: any;
+  email: string;
+  firstName: string;
+  lastName: string;
 }
 
 const TOKEN_KEY = "auth_token";
@@ -24,22 +22,15 @@ const authService = {
   // -------------------------
   // REGISTER
   // -------------------------
-  register: async (data: RegisterData): Promise<RegisterResponse> => {
+  register: async (data: RegisterData): Promise<AuthResponse> => {
     try {
-      console.log("[AuthService] Виконання реєстрації:", {
-        email: data.email,
-        firstName: data.firstName,
-        lastName: data.lastName,
-      });
-
       const response = await api.post("/Auth/register", data);
 
-      console.log("[AuthService] Реєстрація успішна:", response.data);
-
-      return response.data;
+      const authData: AuthResponse = response.data;
+      return authData;
     } catch (error: any) {
       console.error(
-        "[AuthService] Помилка при реєстрації:",
+        "[AuthService] Помилка реєстрації:",
         error.response?.data || error.message,
       );
       throw error;
@@ -49,58 +40,51 @@ const authService = {
   // -------------------------
   // LOGIN
   // -------------------------
-  login: async (email: string, password: string): Promise<LoginResponse> => {
-    const response = await api.post("/Auth/login", { email, password });
-
-    // Підготувати user об’єкт
-    const user = {
-      email: response.data.email,
-      firstName: response.data.firstName,
-      lastName: response.data.lastName,
-    };
-
-    return { token: response.data.token, user };
+  login: async (email: string, password: string): Promise<AuthResponse> => {
+    try {
+      const response = await api.post("/Auth/login", { email, password });
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        "[AuthService] Помилка логіну:",
+        error.response?.data || error.message,
+      );
+      throw error;
+    }
   },
 
   // -------------------------
   // LOGOUT
   // -------------------------
   logout: async (): Promise<void> => {
-    await AsyncStorage.removeItem(TOKEN_KEY);
-    await AsyncStorage.removeItem(USER_KEY);
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await SecureStore.deleteItemAsync(USER_KEY);
   },
 
   // -------------------------
-  // TOKEN + USER STORAGE
+  // STORAGE (Secure)
   // -------------------------
   saveToken: async (token: string) => {
-    await AsyncStorage.setItem(TOKEN_KEY, token);
+    await SecureStore.setItemAsync(TOKEN_KEY, token);
   },
 
   saveUser: async (user: any) => {
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+    const userData = {
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    };
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(userData));
   },
 
   getToken: async (): Promise<string | null> => {
-    return await AsyncStorage.getItem(TOKEN_KEY);
+    return await SecureStore.getItemAsync(TOKEN_KEY);
   },
 
   getCurrentUser: async (): Promise<any | null> => {
-    const storedUser = await AsyncStorage.getItem(USER_KEY);
+    const storedUser = await SecureStore.getItemAsync(USER_KEY);
     return storedUser ? JSON.parse(storedUser) : null;
   },
 };
-
-// ---------------------------------------
-// Автоматичне додавання токена у всі запити
-// ---------------------------------------
-api.interceptors.request.use((config) => {
-  return authService.getToken().then((token) => {
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  });
-});
 
 export default authService;

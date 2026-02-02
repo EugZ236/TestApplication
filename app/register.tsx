@@ -8,7 +8,6 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -28,6 +27,49 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { register } = useAuth();
+
+  const handleRegister = async () => {
+    setEmailError("");
+    setPasswordError("");
+    setConfirmPasswordError("");
+
+    if (!firstName || !lastName || !email || !password) {
+      showToast.error("Error", "Please fill all required fields");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+
+    const pwdValidation = validatePassword(password);
+    if (!pwdValidation.valid) {
+      setPasswordError(pwdValidation.message || "Invalid password");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setConfirmPasswordError("Passwords do not match");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await register(firstName, lastName, email, password);
+      showToast.success("Success", "Welcome to SmartMeal! 👋");
+      router.replace("/welcome");
+    } catch (error: any) {
+      const msg =
+        error.response?.data || "An error occurred during registration";
+      showToast.error(
+        "Registration Failed",
+        typeof msg === "string" ? msg : "Check your data",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -99,49 +141,7 @@ export default function RegisterPage() {
             styles.primaryButton,
             isLoading && styles.primaryButtonDisabled,
           ]}
-          onPress={async () => {
-            console.log("BUTTON PRESSED!");
-            // clear previous errors
-            setEmailError("");
-            setPasswordError("");
-            setConfirmPasswordError("");
-
-            if (!firstName || !lastName || !email || !password) {
-              showToast.error("Error", "Please fill all required fields");
-              return;
-            }
-
-            if (!isValidEmail(email)) {
-              setEmailError("Please enter a valid email address");
-              return;
-            }
-
-            const pwdValidation = validatePassword(password);
-            if (!pwdValidation.valid) {
-              setPasswordError(pwdValidation.message || "Invalid password");
-              return;
-            }
-
-            if (password !== confirmPassword) {
-              setConfirmPasswordError("Passwords do not match");
-              return;
-            }
-
-            setIsLoading(true);
-            try {
-              console.log("Before register");
-              await register(firstName, lastName, email, password);
-              console.log("After register");
-              router.replace("/login");
-            } catch (error) {
-              Alert.alert(
-                "Registration Failed",
-                error instanceof Error ? error.message : "An error occurred",
-              );
-            } finally {
-              setIsLoading(false);
-            }
-          }}
+          onPress={handleRegister}
           disabled={isLoading}
         >
           {isLoading ? (
@@ -165,26 +165,15 @@ export default function RegisterPage() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
+  container: { flex: 1, backgroundColor: "#fff" },
   headerImage: {
     height: 200,
     backgroundColor: "#F5F7FA",
     justifyContent: "center",
     alignItems: "center",
   },
-  content: {
-    padding: 20,
-    flex: 1,
-    justifyContent: "flex-start",
-    gap: 12,
-  },
-  form: {
-    gap: 12,
-    marginVertical: 8,
-  },
+  content: { padding: 20, flex: 1, justifyContent: "flex-start", gap: 12 },
+  form: { gap: 12, marginVertical: 8 },
   input: {
     height: 48,
     borderWidth: 1,
@@ -199,54 +188,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
   },
-  primaryButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  ghostButton: {
-    marginTop: 8,
-    alignItems: "center",
-  },
-  ghostButtonText: {
-    color: "#007AFF",
-    fontWeight: "600",
-  },
-  subtitle: {
-    color: "#666",
-    marginBottom: 8,
-  },
-  checkboxRow: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#CCC",
-    backgroundColor: "#FFF",
-  },
-  checkboxChecked: {
-    backgroundColor: "#007AFF",
-    borderColor: "#007AFF",
-  },
-  termsText: {
-    color: "#666",
-    flex: 1,
-    lineHeight: 18,
-  },
-  link: {
-    color: "#007AFF",
-  },
-  primaryButtonDisabled: {
-    opacity: 0.6,
-  },
-  errorText: {
-    color: "#D9534F",
-    marginTop: 4,
-    fontSize: 12,
-  },
+  primaryButtonText: { color: "#fff", fontWeight: "600" },
+  ghostButton: { marginTop: 8, alignItems: "center" },
+  ghostButtonText: { color: "#007AFF", fontWeight: "600" },
+  subtitle: { color: "#666", marginBottom: 8 },
+  primaryButtonDisabled: { opacity: 0.6 },
+  errorText: { color: "#D9534F", marginTop: 4, fontSize: 12 },
 });
