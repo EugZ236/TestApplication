@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import "react-native-reanimated";
+import Toast from "react-native-toast-message";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { AppThemeProvider } from "@/context/ThemeContext";
@@ -77,6 +78,7 @@ function RootLayoutContent() {
         )}
       </Stack>
       <StatusBar style="auto" />
+      <Toast />
     </ThemeProvider>
   );
 }

@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import { showToast } from "@/utils/toast";
 import { isValidEmail, validatePassword } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -106,7 +107,7 @@ export default function RegisterPage() {
             setConfirmPasswordError("");
 
             if (!firstName || !lastName || !email || !password) {
-              Alert.alert("Error", "Please fill all required fields");
+              showToast.error("Error", "Please fill all required fields");
               return;
             }
 
