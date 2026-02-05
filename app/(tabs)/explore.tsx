@@ -8,9 +8,7 @@ import {
   Platform,
   SafeAreaView,
   StatusBar,
-  StyleSheet,
-  Text,
-  View,
+  StyleSheet
 } from "react-native";
 
 export default function qrScan() {
@@ -44,10 +42,18 @@ export default function qrScan() {
               Alert.alert(
                 "Успіх",
                 `Ви приєдналися до команди "${result.teamName}"`,
-                [{ text: "Чудово", onPress: async () => {
-                  await AsyncStorage.setItem("view_team_id", String(result.id));
-                  router.replace("/team");
-                } }],
+                [
+                  {
+                    text: "Чудово",
+                    onPress: async () => {
+                      await AsyncStorage.setItem(
+                        "view_team_id",
+                        String(result.id),
+                      );
+                      router.replace("/team");
+                    },
+                  },
+                ],
               );
             } catch (e: any) {
               console.error(e);

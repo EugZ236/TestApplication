@@ -7,12 +7,12 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   TextInput,
   TouchableOpacity,
   View,
-  Platform,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -99,27 +99,27 @@ export default function TeamPage() {
 
   return (
     <ThemedView style={styles.container}>
-        <View style={styles.topHeader}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.iconButton}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            accessibilityLabel="Назад"
-          >
-            <ThemedText style={{ fontSize: 18 }}>←</ThemedText>
-          </TouchableOpacity>
+      <View style={styles.topHeader}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.iconButton}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityLabel="Назад"
+        >
+          <ThemedText style={{ fontSize: 18 }}>←</ThemedText>
+        </TouchableOpacity>
 
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.settings}
-              onPress={() => setSidebarOpen(true)}
-              accessibilityLabel="Відкрити налаштування"
-              accessibilityRole="button"
-            >
-              <ThemedText style={{ fontSize: 18 }}>⚙️</ThemedText>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.settings}
+            onPress={() => setSidebarOpen(true)}
+            accessibilityLabel="Відкрити налаштування"
+            accessibilityRole="button"
+          >
+            <ThemedText style={{ fontSize: 18 }}>⚙️</ThemedText>
+          </TouchableOpacity>
         </View>
+      </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Team avatar + title */}
@@ -308,7 +308,10 @@ export default function TeamPage() {
       {/* Sidebar overlay */}
       {sidebarOpen ? (
         <View style={styles.sidebarOverlay} pointerEvents="box-none">
-          <TouchableOpacity style={styles.sidebarBackdrop} onPress={() => setSidebarOpen(false)} />
+          <TouchableOpacity
+            style={styles.sidebarBackdrop}
+            onPress={() => setSidebarOpen(false)}
+          />
           <View style={styles.sidebarPanel}>
             <ThemedText type="title" style={{ marginBottom: 12 }}>
               Налаштування
@@ -318,7 +321,7 @@ export default function TeamPage() {
               style={styles.sidebarItem}
               onPress={() => {
                 setSidebarOpen(false);
-                setTimeout(() => router.push('/edit-team'), 120);
+                setTimeout(() => router.push("/edit-team"), 120);
               }}
               accessibilityRole="button"
             >
@@ -329,20 +332,30 @@ export default function TeamPage() {
               style={styles.sidebarItem}
               onPress={() => {
                 setSidebarOpen(false);
-                setTimeout(() => router.push('/team-qr'), 120);
+                setTimeout(() => router.push("/team-qr"), 120);
               }}
               accessibilityRole="button"
             >
               <ThemedText>QR код команди</ThemedText>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.sidebarItem} onPress={() => { setSidebarOpen(false); /* future: open advanced settings */ }}>
+            <TouchableOpacity
+              style={styles.sidebarItem}
+              onPress={() => {
+                setSidebarOpen(false); /* future: open advanced settings */
+              }}
+            >
               <ThemedText>Додаткові налаштування</ThemedText>
             </TouchableOpacity>
 
             <View style={{ flex: 1 }} />
-            <TouchableOpacity style={[styles.sidebarItem, { marginTop: 8 }]} onPress={() => setSidebarOpen(false)}>
-              <ThemedText style={{ color: '#007AFF', fontWeight: '700' }}>Закрити</ThemedText>
+            <TouchableOpacity
+              style={[styles.sidebarItem, { marginTop: 8 }]}
+              onPress={() => setSidebarOpen(false)}
+            >
+              <ThemedText style={{ color: "#007AFF", fontWeight: "700" }}>
+                Закрити
+              </ThemedText>
             </TouchableOpacity>
           </View>
         </View>
@@ -490,9 +503,22 @@ const styles = StyleSheet.create({
   manageLink: { color: "#007AFF", fontWeight: "700" },
 
   /* sidebar */
-  sidebarOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, flexDirection: "row" },
+  sidebarOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+  },
   sidebarBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.28)" },
-  sidebarPanel: { width: 280, backgroundColor: "#FFF", padding: 18, borderLeftWidth: 1, borderColor: "#F1F4F8" },
+  sidebarPanel: {
+    width: 280,
+    backgroundColor: "#FFF",
+    padding: 18,
+    borderLeftWidth: 1,
+    borderColor: "#F1F4F8",
+  },
   sidebarItem: { paddingVertical: 12 },
 
   quickAddRow: { flexDirection: "row", gap: 8, alignItems: "center" },
