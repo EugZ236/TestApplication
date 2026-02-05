@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   RefreshControl,
   Share,
@@ -348,6 +349,27 @@ export default function TeamsScreen() {
               <Text style={styles.infoLabel}>Invite Code:</Text>
               <Text style={styles.infoValue}>{selectedTeam?.inviteCode}</Text>
             </View>
+
+            {/* QR for invite link */}
+            {selectedTeam ? (
+              (() => {
+                const code = selectedTeam.inviteCode ?? String(selectedTeam.id ?? "");
+                const link = `https://rilking1.github.io/smartmeal-link/?code=${code}`;
+                return (
+                  <View style={{ marginTop: 18, alignItems: "center" }}>
+                    <Image
+                      source={{
+                        uri: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                          link,
+                        )}`,
+                      }}
+                      style={{ width: 160, height: 160, borderRadius: 8 }}
+                    />
+                    <Text style={{ color: "#666", marginTop: 8 }}>Скануйте, щоб приєднатися</Text>
+                  </View>
+                );
+              })()
+            ) : null}
 
             <View style={styles.infoDetailRow}>
               <Text style={styles.infoLabel}>Ваша роль:</Text>
