@@ -232,7 +232,10 @@ export default function TeamPage() {
             </View>
           </View>
 
-          <View style={[styles.card, { marginTop: 14 }]}>
+          <TouchableOpacity
+            style={[styles.card, { marginTop: 14 }]}
+            onPress={() => router.push("/team-budget")}
+          >
             <View style={styles.cardHeaderSmall}>
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
@@ -278,7 +281,7 @@ export default function TeamPage() {
                 >{`Ліміт: ₴${limit.toLocaleString()}`}</ThemedText>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.card, { marginTop: 14 }]}
