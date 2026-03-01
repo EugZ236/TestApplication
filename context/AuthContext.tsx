@@ -12,6 +12,7 @@ interface AuthContextType {
     lastName: string,
     email: string,
     password: string,
+    deviceToken: string,
   ) => Promise<void>;
 
   login: (email: string, password: string) => Promise<void>;
@@ -67,6 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     lastName: string,
     email: string,
     password: string,
+    deviceToken: string,
   ) => {
     try {
       setError(null);
@@ -76,6 +78,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         lastName,
         email,
         password,
+        deviceToken,
       });
 
       await handleAuthSuccess(data);

@@ -6,6 +6,7 @@ export interface RegisterData {
   password: string;
   firstName: string;
   lastName: string;
+  deviceToken: string;
 }
 
 export interface AuthResponse {

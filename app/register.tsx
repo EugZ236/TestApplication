@@ -14,6 +14,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import messaging from "@react-native-firebase/messaging";
+
+async function getFcmToken() {
+  const token = await messaging().getToken();
+  // Как правило, тут отправляют токен на сервер
+  console.log('FCM Token:', token);
+  return token;
+}
 
 export default function RegisterPage() {
   const [firstName, setFirstName] = useState("");
@@ -56,7 +64,7 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      await register(firstName, lastName, email, password);
+      await register(firstName, lastName, email, password, await getFcmToken());
       showToast.success("Success", "Welcome to SmartMeal! 👋");
       router.replace("/welcome");
     } catch (error: any) {
