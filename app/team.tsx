@@ -1,10 +1,11 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import productService from "@/src/services/productService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Image,
   Platform,
@@ -24,6 +25,12 @@ export default function TeamPage() {
   const [team, setTeam] = useState<any | null>(null);
   const [qrLink, setQrLink] = useState<string | null>(null);
   const [quickText, setQuickText] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const suggestionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [shoppingItems, setShoppingItems] = useState<any[]>([]); // initially empty per requirement
   const [budgetAmount, setBudgetAmount] = useState<number>(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -80,6 +87,61 @@ export default function TeamPage() {
       console.error(e);
     }
   }, []);
+
+  const addShoppingItem = useCallback(
+    async (title: string) => {
+      const cleanTitle = title.trim();
+      if (!cleanTitle) return;
+      const id = team?.id ?? "default";
+      const nextItem = {
+        id: Date.now(),
+        title: cleanTitle,
+        section: "Інше",
+        qty: 1,
+        unit: "шт",
+      };
+      const next = [nextItem, ...shoppingItems];
+      setShoppingItems(next);
+      try {
+        await AsyncStorage.setItem(`shopping_${id}`, JSON.stringify(next));
+      } catch (e) {
+        console.error("save quick item:", e);
+      }
+    },
+    [team?.id, shoppingItems],
+  );
+
+  useEffect(() => {
+    const q = quickText.trim();
+    if (suggestionDebounceRef.current) {
+      clearTimeout(suggestionDebounceRef.current);
+    }
+    if (q.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setLoadingSuggestions(false);
+      return;
+    }
+    setLoadingSuggestions(true);
+    suggestionDebounceRef.current = setTimeout(async () => {
+      try {
+        const list = await productService.searchGlobalProducts(q);
+        setSuggestions(list);
+        setShowSuggestions(list.length > 0);
+      } catch (e) {
+        console.error("search products:", e);
+        setSuggestions([]);
+        setShowSuggestions(false);
+      } finally {
+        setLoadingSuggestions(false);
+      }
+    }, 180);
+    return () => {
+      if (suggestionDebounceRef.current) {
+        clearTimeout(suggestionDebounceRef.current);
+      }
+    };
+  }, [quickText]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -156,7 +218,9 @@ export default function TeamPage() {
             <TouchableOpacity
               style={styles.quickAddBtn}
               onPress={() => {
+                addShoppingItem(quickText);
                 setQuickText("");
+                setShowSuggestions(false);
               }}
             >
               <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
@@ -164,6 +228,23 @@ export default function TeamPage() {
               </ThemedText>
             </TouchableOpacity>
           </View>
+          {showSuggestions && suggestions.length > 0 ? (
+            <View style={styles.autocompleteBox}>
+              {suggestions.map((s) => (
+                <TouchableOpacity
+                  key={s}
+                  style={styles.autocompleteItem}
+                  onPress={() => {
+                    setQuickText(s);
+                    addShoppingItem(s);
+                    setShowSuggestions(false);
+                  }}
+                >
+                  <ThemedText>{s}</ThemedText>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         {/* Cards */}
@@ -322,8 +403,11 @@ export default function TeamPage() {
 
             <TouchableOpacity
               style={styles.sidebarItem}
-              onPress={() => {
+              onPress={async () => {
                 setSidebarOpen(false);
+                if (team?.id) {
+                  await AsyncStorage.setItem("edit_team_id", String(team.id));
+                }
                 setTimeout(() => router.push("/edit-team"), 120);
               }}
               accessibilityRole="button"
@@ -533,6 +617,21 @@ const styles = StyleSheet.create({
     borderColor: "#EEF2F7",
     paddingHorizontal: 14,
     backgroundColor: "#FFF",
+  },
+  autocompleteBox: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#E6EDF6",
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    paddingVertical: 4,
+    overflow: "hidden",
+  },
+  autocompleteItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomColor: "#F1F4F8",
+    borderBottomWidth: 1,
   },
   quickAddBtn: {
     width: 52,

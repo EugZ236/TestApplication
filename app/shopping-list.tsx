@@ -1,22 +1,21 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import productService from "@/src/services/productService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    SectionList,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -27,6 +26,11 @@ export default function ShoppingListPage() {
   const [team, setTeam] = useState<any | null>(null);
   const [items, setItems] = useState<any[]>([]); // initially empty per spec
   const [query, setQuery] = useState("");
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [loadingSearchSuggestions, setLoadingSearchSuggestions] =
+    useState(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user: authUser } = useAuth();
 
   useEffect(() => {
@@ -61,6 +65,39 @@ export default function ShoppingListPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    const q = query.trim();
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    if (q.length < 2) {
+      setSearchSuggestions([]);
+      setShowSearchSuggestions(false);
+      setLoadingSearchSuggestions(false);
+      return;
+    }
+    setLoadingSearchSuggestions(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const list = await productService.searchGlobalProducts(q);
+        setSearchSuggestions(list);
+        setShowSearchSuggestions(list.length > 0);
+      } catch (e) {
+        console.error("search products:", e);
+        setSearchSuggestions([]);
+        setShowSearchSuggestions(false);
+      } finally {
+        setLoadingSearchSuggestions(false);
+      }
+    }, 180);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [query]);
+
   // --- modal + form state & persistence handlers
   const [modalVisible, setModalVisible] = React.useState(false);
   const [editingIndex, setEditingIndex] = React.useState<number | null>(null);
@@ -92,17 +129,7 @@ export default function ShoppingListPage() {
   };
 
   function openCreate() {
-    setEditingIndex(null);
-    setForm({
-      title: "",
-      section: categories[0],
-      qty: "1",
-      unit: units[0],
-      buyerId: "",
-      price: "",
-      comment: "",
-    });
-    setModalVisible(true);
+    router.push("/add-product");
   }
 
   function openEdit(idx: number) {
@@ -238,99 +265,60 @@ export default function ShoppingListPage() {
           onChangeText={setQuery}
           style={styles.searchInput}
         />
+        {loadingSearchSuggestions ? (
+          <ThemedText style={{ color: "#888", marginTop: 6, marginLeft: 4 }}>
+            Завантаження...
+          </ThemedText>
+        ) : null}
+        {showSearchSuggestions && searchSuggestions.length > 0 ? (
+          <View style={styles.autocompleteBox}>
+            {searchSuggestions.map((s) => (
+              <TouchableOpacity
+                key={s}
+                style={styles.autocompleteItem}
+                onPress={() => {
+                  setQuery(s);
+                  setShowSearchSuggestions(false);
+                }}
+              >
+                <ThemedText>{s}</ThemedText>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
       </View>
 
-      {/* show only categories that have items; when none match, render a single empty state */}
-      {(() => {
-        const filtered = items.filter((it) =>
-          it.title?.toLowerCase().includes(query.trim().toLowerCase()),
-        );
-        const visibleSections = categories
-          .map((c) => ({
-            title: c,
-            data: filtered.filter((it) => it.section === c),
-          }))
-          .filter((s) => s.data.length > 0);
-
-        if (visibleSections.length === 0) {
-          // nothing to show — either empty list or no search results
-          return (
-            <View style={{ paddingHorizontal: 20 }}>
-              {filtered.length === 0 ? (
-                <View>
-                  <ThemedText style={styles.sectionTitle}>
-                    Список покупок
-                  </ThemedText>
-                  {renderEmpty()}
-                </View>
-              ) : (
-                <View style={{ marginTop: 20 }}>
-                  <ThemedText style={styles.sectionTitle}>
-                    Результати пошуку
-                  </ThemedText>
-                  <ThemedText style={{ color: "#999", marginTop: 8 }}>
-                    Нічого не знайдено
-                  </ThemedText>
-                </View>
-              )}
-
-              <View style={{ height: 120 }} />
-            </View>
-          );
-        }
-
-        return (
-          <SectionList
-            sections={visibleSections}
-            contentContainerStyle={{ paddingHorizontal: 20 }}
-            renderSectionHeader={({ section }) => (
-              <ThemedText
-                style={styles.sectionTitle}
-              >{`${section.title} ${section.data.length > 0 ? `• ${section.data.length}` : ""}`}</ThemedText>
-            )}
-            renderItem={({ item }) => {
-              const globalIndex = items.findIndex(
-                (it) => (it.id ?? String(it.title)) === (item.id ?? item.title),
-              );
-              return (
+      <View style={styles.gridWrap}>
+        {items.length === 0
+          ? renderEmpty()
+          : items
+              .filter((it) =>
+                it.title?.toLowerCase().includes(query.trim().toLowerCase()),
+              )
+              .map((item, idx) => (
                 <TouchableOpacity
-                  style={styles.itemCard}
-                  onPress={() => openEdit(globalIndex)}
+                  key={String(item.id ?? idx)}
+                  style={styles.productCard}
+                  onPress={() => openEdit(idx)}
                 >
-                  <View style={styles.itemLeft}>
-                    <View style={styles.checkbox} />
-                    <View style={{ marginLeft: 12 }}>
-                      <ThemedText style={{ fontWeight: "700" }}>
-                        {item.title}
-                      </ThemedText>
-                      {item.qty ? (
-                        <ThemedText
-                          style={{ color: "#999", marginTop: 6 }}
-                        >{`${item.qty} ${item.unit ?? "шт"}`}</ThemedText>
-                      ) : null}
-                      {item.comment ? (
-                        <ThemedText style={{ color: "#FF7A59", marginTop: 8 }}>
-                          {item.comment}
-                        </ThemedText>
-                      ) : null}
-                    </View>
-                  </View>
-
-                  {item.buyerId ? (
-                    <Image
-                      source={{ uri: item.buyerAvatar }}
-                      style={styles.memberImage as any}
-                    />
-                  ) : (
-                    <View style={styles.itemRightPlaceholder} />
-                  )}
+                  <View style={styles.productPreview} />
+                  <ThemedText style={styles.productTitle}>
+                    {item.title}
+                  </ThemedText>
+                  <ThemedText style={styles.productMeta}>
+                    {item.qty ? `${item.qty} ${item.unit ?? "шт"}` : ""}
+                  </ThemedText>
                 </TouchableOpacity>
-              );
-            }}
-            keyExtractor={(item, idx) => String(item.id ?? idx)}
-          />
-        );
-      })()}
+              ))}
+      </View>
+
+      <View style={styles.bottomRow}>
+        <TouchableOpacity style={styles.openListBtn} onPress={openCreate}>
+          <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
+            Add my product
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
 
       {/* Edit / create bottom sheet */}
       <Modal visible={modalVisible} animationType="slide" transparent>
@@ -510,10 +498,6 @@ export default function ShoppingListPage() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
-      <TouchableOpacity style={styles.fab} onPress={openCreate}>
-        <ThemedText style={{ color: "#fff", fontSize: 28 }}>+</ThemedText>
-      </TouchableOpacity>
     </ThemedView>
   );
 }
@@ -554,6 +538,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   metaText: { color: "#666" },
+  content: { flex: 1, paddingHorizontal: 20 },
   searchWrap: { paddingHorizontal: 20, marginTop: 18 },
   searchInput: {
     height: 48,
@@ -562,6 +547,57 @@ const styles = StyleSheet.create({
     borderColor: "#EEF2F7",
     paddingHorizontal: 14,
     backgroundColor: "#fff",
+  },
+  gridWrap: {
+    marginTop: 14,
+    paddingHorizontal: 2,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  productCard: {
+    width: "48%",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    padding: 10,
+    marginBottom: 10,
+  },
+  productPreview: {
+    width: "100%",
+    height: 70,
+    borderRadius: 10,
+    backgroundColor: "#F4F7FF",
+    marginBottom: 8,
+  },
+  productTitle: { fontWeight: "700", fontSize: 14, marginBottom: 4 },
+  productMeta: { color: "#666", fontSize: 12 },
+  bottomRow: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderColor: "#EDF2FF",
+    backgroundColor: "#fff",
+  },
+  openListBtn: {
+    backgroundColor: "#2F80ED",
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  autocompleteBox: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#E6EDF6",
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  autocompleteItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomColor: "#F1F4F8",
+    borderBottomWidth: 1,
   },
   sectionTitle: {
     marginTop: 20,

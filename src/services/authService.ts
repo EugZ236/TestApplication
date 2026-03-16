@@ -25,7 +25,7 @@ const authService = {
   // -------------------------
   register: async (data: RegisterData): Promise<AuthResponse> => {
     try {
-      const response = await api.post("/Auth/register", data);
+      const response = await api.post("/api/Auth/register", data);
 
       const authData: AuthResponse = response.data;
       return authData;
@@ -43,7 +43,7 @@ const authService = {
   // -------------------------
   login: async (email: string, password: string): Promise<AuthResponse> => {
     try {
-      const response = await api.post("/Auth/login", { email, password });
+      const response = await api.post("/api/Auth/login", { email, password });
       return response.data;
     } catch (error: any) {
       console.error(

@@ -11,22 +11,22 @@ export interface Team {
 
 const teamService = {
   getTeams: async (): Promise<Team[]> => {
-    const response = await api.get("/Teams");
+    const response = await api.get("/api/Teams");
     return response.data;
   },
 
   createTeam: async (name: string): Promise<Team> => {
-    const response = await api.post("/Teams", { name });
+    const response = await api.post("/api/Teams", { name });
     return response.data;
   },
 
   joinTeam: async (inviteCode: string) => {
-    const response = await api.post("/Teams/join", { inviteCode });
+    const response = await api.post("/api/Teams/join", { inviteCode });
     return response.data;
   },
 
   updateTeam: async (id: number, name: string): Promise<void> => {
-    await api.put(`/Teams/${id}`, { name });
+    await api.put(`/api/Teams/${id}`, { name });
   },
 
   deleteTeam: async (id: number): Promise<void> => {
