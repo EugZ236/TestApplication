@@ -167,23 +167,26 @@ export default function CategoryProductsPage() {
           keyExtractor={(item) =>
             String(item.id ?? item.productId ?? Math.random())
           }
-          contentContainerStyle={{ padding: 12, paddingBottom: 100 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.productCard}
-              onPress={() => openProduct(item)}
-            >
-              <View style={styles.productImage} />
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.productTitle}>
-                  {item.name ?? item.title ?? "Продукт"}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 120 }}
+          renderItem={({ item }) => {
+            const name =
+              item.name ?? item.title ?? item.productName ?? "Продукт";
+            return (
+              <TouchableOpacity
+                style={styles.productTile}
+                onPress={() => openProduct(item)}
+              >
+                <View style={styles.tileImageWrap}>
+                  <View style={styles.tileImage} />
+                </View>
+                <ThemedText style={styles.tileName} numberOfLines={2}>
+                  {name}
                 </ThemedText>
-                <ThemedText style={styles.productSub}>
-                  {item.defaultUnit ? `Одиниця: ${item.defaultUnit}` : ""}
-                </ThemedText>
-              </View>
-            </TouchableOpacity>
-          )}
+              </TouchableOpacity>
+            );
+          }}
           ListEmptyComponent={() => (
             <View style={{ padding: 16 }}>
               <ThemedText style={{ color: "#999" }}>
@@ -309,6 +312,47 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 10,
     backgroundColor: "#fff",
+  },
+  columnWrapper: {
+    justifyContent: "space-between",
+    marginBottom: 10,
+    paddingHorizontal: 2,
+  },
+  productTile: {
+    flex: 1,
+    minWidth: 150,
+    maxWidth: "48%",
+    backgroundColor: "#F9FAFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    padding: 10,
+    margin: 2,
+    alignItems: "center",
+  },
+  tileImageWrap: {
+    width: 95,
+    height: 95,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E8EEFF",
+    marginBottom: 8,
+    overflow: "hidden",
+  },
+  tileImage: {
+    width: 82,
+    height: 82,
+    borderRadius: 12,
+    backgroundColor: "#E6F0FF",
+  },
+  tileName: {
+    textAlign: "center",
+    fontWeight: "700",
+    fontSize: 13,
+    color: "#111",
   },
   productCard: {
     flexDirection: "row",

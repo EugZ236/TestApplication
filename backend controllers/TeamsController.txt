@@ -1,0 +1,101 @@
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using SmartMeal.Application.Teams.Commands.CreateTeam;
+using SmartMeal.Application.Teams.Commands.JoinTeam;
+using SmartMeal.Application.Teams.Queries.GetUserTeams;
+using SmartMeal.Application.Teams.Commands.UpdateTeam;
+using SmartMeal.Application.Teams.Commands.DeleteTeam;
+using SmartMeal.WebApi.Controllers.Common;
+using SmartMeal.WebApi.Models.Teams;
+using Swashbuckle.AspNetCore.Annotations;
+using System.Net;
+namespace SmartMeal.WebApi.Controllers;
+
+[Route("api/[controller]")]
+[ApiController]
+[Authorize]
+[SwaggerTag("Team management operations including creation, joining, and listing user teams")]
+public class TeamsController : CustomControllerBase
+{
+    private readonly IMediator _mediator;
+
+    public TeamsController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    [HttpGet]
+    [SwaggerResponse((int)HttpStatusCode.OK, "User teams retrieved successfully", typeof(List<TeamDto>))]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [SwaggerResponse((int)HttpStatusCode.InternalServerError, "Internal server error")]
+    [Produces("application/json")]
+    public async Task<ActionResult<List<TeamDto>>> GetUserTeams()
+    {
+        var teams = await _mediator.Send(new GetUserTeamsQuery());
+        return Ok(teams);
+    }
+
+    [HttpPost]
+    [SwaggerResponse((int)HttpStatusCode.Created, "Team created successfully", typeof(CreateTeamResponse))]
+    [SwaggerResponse((int)HttpStatusCode.BadRequest, "Invalid request data")]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [SwaggerResponse((int)HttpStatusCode.InternalServerError, "Internal server error")]
+    [Consumes("application/json")]
+    [Produces("application/json")]
+    public async Task<ActionResult<CreateTeamResponse>> CreateTeam(
+        [FromBody] CreateTeamRequest request)
+    {
+        var command = new CreateTeamCommand { Name = request.Name };
+        var result = await _mediator.Send(command);
+
+        if (result.IsSuccess)
+        {
+            return HandleCreatedResult(result, nameof(GetUserTeams), new { id = result.Value!.Id });
+        }
+
+        return HandleResult(result);
+    }
+
+    [HttpPost("join")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "Successfully joined the team", typeof(JoinTeamResponse))]
+    [SwaggerResponse((int)HttpStatusCode.BadRequest, "Invalid invite code or user already member")]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Team with specified invite code not found")]
+    [SwaggerResponse((int)HttpStatusCode.InternalServerError, "Internal server error")]
+    [Consumes("application/json")]
+    [Produces("application/json")]
+    public async Task<ActionResult<JoinTeamResponse>> JoinTeam(
+        [FromBody] JoinTeamRequest request)
+    {
+        var command = new JoinTeamCommand { InviteCode = request.InviteCode };
+        var result = await _mediator.Send(command);
+
+        return HandleResult(result);
+    }
+
+
+    [HttpPut("{id:int}")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Team updated successfully")]
+    [SwaggerResponse((int)HttpStatusCode.Forbidden, "Only the creator can edit the team")]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Team not found")]
+    public async Task<ActionResult<Unit>> UpdateTeam(int id, [FromBody] UpdateTeamRequest request)
+    {
+        var command = new UpdateTeamCommand { Id = id, Name = request.Name };
+        var result = await _mediator.Send(command);
+        return HandleResult(result);
+    }
+
+    [HttpDelete("{id:int}")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Team deleted successfully")]
+    [SwaggerResponse((int)HttpStatusCode.Forbidden, "Only the creator can delete the team")]
+    
+    public async Task<ActionResult<Unit>> DeleteTeam(int id)
+    {
+        var result = await _mediator.Send(new DeleteTeamCommand { Id = id });
+        return HandleResult(result);
+    }
+
+
+
+}

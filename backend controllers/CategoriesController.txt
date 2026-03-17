@@ -1,0 +1,95 @@
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using SmartMeal.Application.Categories.Commands.CreateCategory;
+using SmartMeal.Application.Categories.Commands.DeleteCategory;
+using SmartMeal.Application.Categories.Commands.UpdateCategory;
+using SmartMeal.Application.Categories.Queries.GetCategories;
+using SmartMeal.Application.Categories.Queries.GetCategoryById;
+using SmartMeal.WebApi.Controllers.Common;
+using SmartMeal.WebApi.Models.Categories;
+using Swashbuckle.AspNetCore.Annotations;
+using System.Net;
+
+namespace SmartMeal.WebApi.Controllers;
+
+[Route("api/[controller]")]
+[ApiController]
+[Authorize]
+[SwaggerTag("Category management operations")]
+public class CategoriesController : CustomControllerBase
+{
+    private readonly IMediator _mediator;
+
+    public CategoriesController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    [HttpGet]
+    [SwaggerResponse((int)HttpStatusCode.OK, "Categories retrieved successfully", typeof(List<CategoryDto>))]
+    [Produces("application/json")]
+    public async Task<ActionResult<List<CategoryDto>>> GetCategories()
+    {
+        var result = await _mediator.Send(new GetCategoriesQuery());
+        return HandleResult(result);
+    }
+
+    [HttpGet("{id:int}")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "Category retrieved successfully", typeof(CategoryDto))]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Category not found")]
+    [Produces("application/json")]
+    public async Task<ActionResult<CategoryDto>> GetCategoryById(int id)
+    {
+        var result = await _mediator.Send(new GetCategoryByIdQuery(id));
+        return HandleResult(result);
+    }
+
+    [HttpPost]
+    [SwaggerResponse((int)HttpStatusCode.Created, "Category created successfully", typeof(int))]
+    [SwaggerResponse((int)HttpStatusCode.BadRequest, "Invalid request data")]
+    [SwaggerResponse((int)HttpStatusCode.Conflict, "Category with this name already exists")]
+    [Consumes("application/json")]
+    [Produces("application/json")]
+    public async Task<ActionResult<int>> CreateCategory([FromBody] CreateCategoryRequest request)
+    {
+        var command = new CreateCategoryCommand
+        {
+            Name = request.Name,
+            ImageBase64 = request.ImageBase64
+        };
+
+        var result = await _mediator.Send(command);
+
+        return HandleCreatedResult(result, nameof(GetCategoryById), new { id = result.Value });
+    }
+
+    [HttpPut("{id:int}")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Category updated successfully")]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Category not found")]
+    [SwaggerResponse((int)HttpStatusCode.BadRequest, "Invalid request data")]
+    [SwaggerResponse((int)HttpStatusCode.Conflict, "Category with this name already exists")]
+    [Consumes("application/json")]
+    public async Task<IActionResult> UpdateCategory(int id, [FromBody] UpdateCategoryRequest request)
+    {
+        var command = new UpdateCategoryCommand
+        {
+            Id = id,
+            Name = request.Name,
+            ImageBase64 = request.ImageBase64
+        };
+
+        var result = await _mediator.Send(command);
+        return HandleResult(result);
+    }
+
+    [HttpDelete("{id:int}")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Category deleted successfully")]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Category not found")]
+    [SwaggerResponse((int)HttpStatusCode.Conflict, "Category contains products and cannot be deleted")]
+    public async Task<IActionResult> DeleteCategory(int id)
+    {
+        var result = await _mediator.Send(new DeleteCategoryCommand(id));
+        return HandleResult(result);
+    }
+}

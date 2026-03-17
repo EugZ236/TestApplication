@@ -2,15 +2,18 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
 import productService from "@/src/services/productService";
+import shoppingListService from "@/src/services/shoppingListService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     Image,
+    Modal,
     Platform,
     ScrollView,
     StyleSheet,
+    Text,
     TextInput,
     TouchableOpacity,
     View,
@@ -28,6 +31,12 @@ export default function TeamPage() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [selectedQuickSuggestion, setSelectedQuickSuggestion] = useState<
+    string | null
+  >(null);
+  const [selectedQuickQty, setSelectedQuickQty] = useState("1");
+  const [selectedQuickUnit, setSelectedQuickUnit] = useState("шт");
+  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const suggestionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -86,18 +95,37 @@ export default function TeamPage() {
           return String(t.id) === String(id);
         }) || null;
       if (!found?.id) return;
-      const shoppingRaw = await AsyncStorage.getItem(`shopping_${found.id}`);
-      if (shoppingRaw) {
-        const parsed = JSON.parse(shoppingRaw);
-        setShoppingItems(Array.isArray(parsed) ? parsed : []);
-      } else setShoppingItems([]);
+
+      try {
+        const remote = await shoppingListService.getByTeam(Number(found.id));
+        const mapped = (Array.isArray(remote) ? remote : []).map(
+          (item: any) => ({
+            id: item.id,
+            title: item.name,
+            qty: item.quantity,
+            unit: item.unit,
+            section: item.category,
+            buyerId: item.assignedToUserId ?? "",
+          }),
+        );
+        setShoppingItems(mapped);
+      } catch (e) {
+        console.warn("Не вдалося завантажити список із сервера", e);
+        const shoppingRaw = await AsyncStorage.getItem(`shopping_${found.id}`);
+        if (shoppingRaw) {
+          const parsed = JSON.parse(shoppingRaw);
+          setShoppingItems(Array.isArray(parsed) ? parsed : []);
+        } else {
+          setShoppingItems([]);
+        }
+      }
     } catch (e) {
       console.error(e);
     }
   }, []);
 
   const addShoppingItem = useCallback(
-    async (title: string) => {
+    async (title: string, qty: number = 1, unit: string = "шт") => {
       const cleanTitle = title.trim();
       if (!cleanTitle) return;
       const id = team?.id ?? "default";
@@ -105,8 +133,8 @@ export default function TeamPage() {
         id: Date.now(),
         title: cleanTitle,
         section: "Інше",
-        qty: 1,
-        unit: "шт",
+        qty,
+        unit,
       };
       const next = [nextItem, ...shoppingItems];
       setShoppingItems(next);
@@ -115,8 +143,24 @@ export default function TeamPage() {
       } catch (e) {
         console.error("save quick item:", e);
       }
+
+      if (team?.id) {
+        try {
+          await shoppingListService.createItem({
+            teamId: Number(team.id),
+            name: cleanTitle,
+            quantity: qty,
+            unit,
+            category: "Інше",
+          });
+          // reload from server to keep model in sync
+          loadShopping();
+        } catch (e) {
+          console.warn("Не вдалося синхронізувати в серверний список", e);
+        }
+      }
     },
-    [team?.id, shoppingItems],
+    [team?.id, shoppingItems, loadShopping],
   );
 
   useEffect(() => {
@@ -243,8 +287,10 @@ export default function TeamPage() {
                   key={s}
                   style={styles.autocompleteItem}
                   onPress={() => {
-                    setQuickText(s);
-                    addShoppingItem(s);
+                    setSelectedQuickSuggestion(s);
+                    setSelectedQuickQty("1");
+                    setSelectedQuickUnit("шт");
+                    setShowQuickAddModal(true);
                     setShowSuggestions(false);
                   }}
                 >
@@ -396,6 +442,59 @@ export default function TeamPage() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal visible={showQuickAddModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCardQuickAdd}>
+            <View style={styles.modalHeaderQuickAdd}>
+              <ThemedText type="title">
+                Додати {selectedQuickSuggestion ?? "продукт"}
+              </ThemedText>
+              <TouchableOpacity
+                onPress={() => setShowQuickAddModal(false)}
+                style={styles.closeBtn}
+              >
+                <Text style={{ fontSize: 20 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalFieldRow}>
+              <ThemedText style={styles.modalLabel}>Кількість</ThemedText>
+              <TextInput
+                style={styles.modalInput}
+                value={selectedQuickQty}
+                onChangeText={setSelectedQuickQty}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={styles.modalFieldRow}>
+              <ThemedText style={styles.modalLabel}>Одиниця</ThemedText>
+              <TextInput
+                style={styles.modalInput}
+                value={selectedQuickUnit}
+                onChangeText={setSelectedQuickUnit}
+              />
+            </View>
+            <TouchableOpacity
+              style={styles.saveBtnQuickAdd}
+              onPress={async () => {
+                if (!selectedQuickSuggestion) return;
+                const qty = Number(selectedQuickQty) || 1;
+                await addShoppingItem(
+                  selectedQuickSuggestion,
+                  qty,
+                  selectedQuickUnit || "шт",
+                );
+                setShowQuickAddModal(false);
+                setQuickText("");
+              }}
+            >
+              <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
+                Додати у список
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Sidebar overlay */}
       {sidebarOpen ? (
@@ -757,5 +856,54 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end",
+  },
+  modalCardQuickAdd: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+    borderColor: "#EEF2F7",
+    borderTopWidth: 1,
+  },
+  modalHeaderQuickAdd: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F2F5FF",
+  },
+  modalFieldRow: {
+    marginTop: 10,
+  },
+  modalLabel: {
+    color: "#444",
+    marginBottom: 6,
+    fontSize: 12,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 42,
+    backgroundColor: "#fff",
+  },
+  saveBtnQuickAdd: {
+    marginTop: 14,
+    backgroundColor: "#2F80ED",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
   },
 });

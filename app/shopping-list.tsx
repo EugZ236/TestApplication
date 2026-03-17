@@ -1,22 +1,22 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
-import productService from "@/src/services/productService";
 import shoppingListService from "@/src/services/shoppingListService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -27,11 +27,6 @@ export default function ShoppingListPage() {
   const [team, setTeam] = useState<any | null>(null);
   const [items, setItems] = useState<any[]>([]); // initially empty per spec
   const [query, setQuery] = useState("");
-  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
-  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
-  const [loadingSearchSuggestions, setLoadingSearchSuggestions] =
-    useState(false);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user: authUser } = useAuth();
 
   useEffect(() => {
@@ -88,42 +83,9 @@ export default function ShoppingListPage() {
     })();
   }, []);
 
-  useEffect(() => {
-    const q = query.trim();
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-    }
-    if (q.length < 2) {
-      setSearchSuggestions([]);
-      setShowSearchSuggestions(false);
-      setLoadingSearchSuggestions(false);
-      return;
-    }
-    setLoadingSearchSuggestions(true);
-    searchDebounceRef.current = setTimeout(async () => {
-      try {
-        const list = await productService.searchGlobalProducts(q);
-        setSearchSuggestions(list);
-        setShowSearchSuggestions(list.length > 0);
-      } catch (e) {
-        console.error("search products:", e);
-        setSearchSuggestions([]);
-        setShowSearchSuggestions(false);
-      } finally {
-        setLoadingSearchSuggestions(false);
-      }
-    }, 180);
-
-    return () => {
-      if (searchDebounceRef.current) {
-        clearTimeout(searchDebounceRef.current);
-      }
-    };
-  }, [query]);
-
   // --- modal + form state & persistence handlers
   const [modalVisible, setModalVisible] = React.useState(false);
-  const [editingIndex, setEditingIndex] = React.useState<number | null>(null);
+  const [editingIndex] = React.useState<number | null>(null);
   const categories = [
     "Овочі та фрукти",
     "Молочні продукти",
@@ -153,22 +115,6 @@ export default function ShoppingListPage() {
 
   function openCreate() {
     router.push("/add-product");
-  }
-
-  function openEdit(idx: number) {
-    const it = items[idx];
-    if (!it) return;
-    setEditingIndex(idx);
-    setForm({
-      title: it.title ?? "",
-      section: it.section ?? categories[0],
-      qty: String(it.qty ?? "1"),
-      unit: it.unit ?? units[0],
-      buyerId: it.buyerId ?? "",
-      price: it.price ? String(it.price) : "",
-      comment: it.comment ?? "",
-    });
-    setModalVisible(true);
   }
 
   async function saveItem() {
@@ -265,9 +211,11 @@ export default function ShoppingListPage() {
         >
           <ThemedText style={{ fontSize: 20 }}>←</ThemedText>
         </TouchableOpacity>
-        <ThemedText type="title" style={styles.title}>
-          Список покупок
-        </ThemedText>
+        <View style={{ flex: 1, alignItems: "center" }}>
+          <ThemedText type="title" style={styles.title}>
+            Team: {team?.name ?? "Family"}
+          </ThemedText>
+        </View>
         <View style={styles.headerRight} />
       </View>
 
@@ -288,57 +236,119 @@ export default function ShoppingListPage() {
           onChangeText={setQuery}
           style={styles.searchInput}
         />
-        {loadingSearchSuggestions ? (
-          <ThemedText style={{ color: "#888", marginTop: 6, marginLeft: 4 }}>
-            Завантаження...
-          </ThemedText>
-        ) : null}
-        {showSearchSuggestions && searchSuggestions.length > 0 ? (
-          <View style={styles.autocompleteBox}>
-            {searchSuggestions.map((s) => (
-              <TouchableOpacity
-                key={s}
-                style={styles.autocompleteItem}
-                onPress={() => {
-                  setQuery(s);
-                  setShowSearchSuggestions(false);
-                }}
-              >
-                <ThemedText>{s}</ThemedText>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : null}
       </View>
 
-      <View style={styles.gridWrap}>
+      <ScrollView
+        style={styles.listWrap}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
+      >
         {items.length === 0
           ? renderEmpty()
           : items
               .filter((it) =>
                 it.title?.toLowerCase().includes(query.trim().toLowerCase()),
               )
-              .map((item, idx) => (
-                <TouchableOpacity
-                  key={String(item.id ?? idx)}
-                  style={styles.productCard}
-                  onPress={() => openEdit(idx)}
-                >
-                  <View style={styles.productPreview} />
-                  <ThemedText style={styles.productTitle}>
-                    {item.title}
-                  </ThemedText>
-                  <ThemedText style={styles.productMeta}>
-                    {item.qty ? `${item.qty} ${item.unit ?? "шт"}` : ""}
-                  </ThemedText>
-                </TouchableOpacity>
-              ))}
-      </View>
+              .map((item, idx) => {
+                const member = (team?.members || []).find(
+                  (m: any) => m.id === item.buyerId,
+                );
+                const buyerName =
+                  item.buyerId === "me"
+                    ? "Я"
+                    : member
+                      ? `${member.firstName ?? member.lastName ?? "Учасник"}`
+                      : "Учасник";
+                return (
+                  <View
+                    key={String(item.id ?? idx)}
+                    style={styles.productCardNew}
+                  >
+                    <View style={styles.productTopRow}>
+                      <View style={styles.productImage} />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <ThemedText
+                          style={styles.productTitleNew}
+                          numberOfLines={2}
+                        >
+                          {item.title}
+                        </ThemedText>
+                        <ThemedText style={styles.productSubNew}>
+                          Купити: {buyerName}
+                        </ThemedText>
+                      </View>
+                      <TouchableOpacity style={styles.badgeBtn}>
+                        <Text style={styles.badgeText}>⋮</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.checkboxNew,
+                          item.checked ? styles.checked : null,
+                        ]}
+                        onPress={() => {
+                          const next = [...items];
+                          next[idx] = {
+                            ...next[idx],
+                            checked: !next[idx]?.checked,
+                          };
+                          setItems(next);
+                          persistItems(next);
+                        }}
+                      >
+                        {item.checked ? (
+                          <Text style={{ color: "#fff" }}>✓</Text>
+                        ) : null}
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.productBottomRow}>
+                      <View style={styles.qtyRowNew}>
+                        <TouchableOpacity
+                          style={styles.qtyBtnNew}
+                          onPress={() => {
+                            const next = [...items];
+                            const curr = Number(item.qty || 1);
+                            next[idx] = {
+                              ...next[idx],
+                              qty: Math.max(0, curr - 1),
+                            };
+                            setItems(next);
+                            persistItems(next);
+                          }}
+                        >
+                          <Text style={styles.qtyBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.qtyText}>{item.qty ?? 1}</Text>
+                        <TouchableOpacity
+                          style={styles.qtyBtnNew}
+                          onPress={() => {
+                            const next = [...items];
+                            const curr = Number(item.qty || 1);
+                            next[idx] = {
+                              ...next[idx],
+                              qty: curr + 1,
+                            };
+                            setItems(next);
+                            persistItems(next);
+                          }}
+                        >
+                          <Text style={styles.qtyBtnText}>+</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.unitText}>{item.unit ?? "шт"}</Text>
+                      </View>
+                      <ThemedText style={styles.priceText}>
+                        {Number(item.price || 79.49).toFixed(2)} грн
+                      </ThemedText>
+                    </View>
+                  </View>
+                );
+              })}
+      </ScrollView>
 
       <View style={styles.bottomRow}>
         <TouchableOpacity style={styles.openListBtn} onPress={openCreate}>
           <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-            Add my product
+            + Додати продукт
           </ThemedText>
         </TouchableOpacity>
       </View>
@@ -571,31 +581,104 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: "#fff",
   },
-  gridWrap: {
-    marginTop: 14,
-    paddingHorizontal: 2,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+  listWrap: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    flex: 1,
   },
-  productCard: {
-    width: "48%",
+  listContent: {
+    paddingBottom: 140,
+  },
+  productCardNew: {
     backgroundColor: "#fff",
-    borderRadius: 14,
+    borderRadius: 16,
+    padding: 12,
     borderWidth: 1,
     borderColor: "#EEF2F7",
-    padding: 10,
     marginBottom: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 1,
   },
-  productPreview: {
-    width: "100%",
-    height: 70,
-    borderRadius: 10,
+  productTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  productImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
     backgroundColor: "#F4F7FF",
-    marginBottom: 8,
   },
-  productTitle: { fontWeight: "700", fontSize: 14, marginBottom: 4 },
-  productMeta: { color: "#666", fontSize: 12 },
+  productTitleNew: { fontWeight: "700", fontSize: 15, marginBottom: 4 },
+  productSubNew: { fontSize: 12, color: "#999" },
+  checkboxNew: {
+    width: 24,
+    height: 24,
+    borderWidth: 1,
+    borderColor: "#DDD",
+    borderRadius: 6,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checked: {
+    backgroundColor: "#2F80ED",
+    borderColor: "#2F80ED",
+  },
+  productBottomRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  qtyRowNew: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  qtyBtnNew: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E4E7F0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  qtyText: {
+    fontWeight: "700",
+  },
+  unitText: {
+    marginLeft: 6,
+    color: "#666",
+    fontSize: 12,
+  },
+  qtyBtnText: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  badgeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: "#F6F8FB",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  badgeText: {
+    fontSize: 18,
+    color: "#6B7280",
+    fontWeight: "700",
+    lineHeight: 20,
+  },
+  priceText: {
+    fontWeight: "700",
+    color: "#111",
+    fontSize: 13,
+  },
   bottomRow: {
     padding: 20,
     borderTopWidth: 1,
@@ -608,20 +691,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     alignItems: "center",
   },
-  autocompleteBox: {
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: "#E6EDF6",
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    overflow: "hidden",
-  },
-  autocompleteItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderBottomColor: "#F1F4F8",
-    borderBottomWidth: 1,
-  },
+
   sectionTitle: {
     marginTop: 20,
     color: "#999",

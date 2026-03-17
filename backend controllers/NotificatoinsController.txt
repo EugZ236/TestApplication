@@ -1,0 +1,53 @@
+using FirebaseAdmin.Messaging;
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using SmartMeal.Application.Teams.Queries.GetTeamDeviceTokens;
+using TestToSendNotify.Models;
+
+namespace TestToSendNotify.Controllers;
+
+[Route("api/[controller]")]
+[ApiController]
+public class NotificationController : ControllerBase
+{
+    private readonly ILogger<NotificationController> _logger;
+    private readonly IMediator _mediator;
+
+    public NotificationController(ILogger<NotificationController> logger, IMediator mediator)
+    {
+        _logger = logger;
+        _mediator = mediator;
+    }
+
+    [HttpPost("SendNotification")]
+    public async Task<IActionResult> SendNotification(NotificationRequest notificationRequest)
+    {
+
+        try
+        {
+            var deviceTokens = await _mediator.Send(new GetTeamDeviceTokensQuery { TeamId = notificationRequest.TeamId });
+
+            var message = new MulticastMessage()
+            {
+                Notification = new Notification()
+                {
+                    Title = notificationRequest.Title,
+                    Body = notificationRequest.Body,
+                },
+                Tokens = deviceTokens,
+            };
+
+            var response = await FirebaseMessaging.DefaultInstance.SendEachForMulticastAsync(message);
+
+            return Ok(response);
+        }
+        catch (FirebaseMessagingException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Internal server error: {ex.Message}");
+        }
+    }
+}

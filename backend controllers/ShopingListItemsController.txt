@@ -1,0 +1,111 @@
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using SmartMeal.Application.ShoppingListItems.Commands.CreateShoppingListItem;
+using SmartMeal.Application.ShoppingListItems.Commands.DeleteShoppingListItem;
+using SmartMeal.Application.ShoppingListItems.Commands.FinishShopping;
+using SmartMeal.Application.ShoppingListItems.Commands.UpdateShoppingListItem;
+using SmartMeal.Application.ShoppingListItems.Queries.GetShoppingListItems;
+using SmartMeal.WebApi.Controllers.Common;
+using SmartMeal.WebApi.Models.ShoppingLists;
+using Swashbuckle.AspNetCore.Annotations;
+using System.Net;
+
+namespace SmartMeal.WebApi.Controllers;
+
+[Route("api/lists/items")]
+[ApiController]
+[Authorize]
+[SwaggerTag("Shopping list items management")]
+public class ShoppingListItemsController : CustomControllerBase
+{
+    private readonly IMediator _mediator;
+
+    public ShoppingListItemsController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    [HttpGet("team/{teamId}")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "List retrieved successfully", typeof(List<ShoppingListItemDto>))]
+    public async Task<ActionResult<List<ShoppingListItemDto>>> GetByTeam(int teamId)
+    {
+        var query = new GetShoppingListItemsQuery(teamId);
+        var result = await _mediator.Send(query);
+
+        return HandleResult(result);
+    }
+
+    [HttpPost]
+    [SwaggerResponse((int)HttpStatusCode.OK, "Item created successfully", typeof(int))]
+    [SwaggerResponse((int)HttpStatusCode.BadRequest, "Invalid request data")]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [SwaggerResponse((int)HttpStatusCode.Forbidden, "User does not have access to this team")]
+    [SwaggerResponse((int)HttpStatusCode.InternalServerError, "Internal server error")]
+    [Consumes("application/json")]
+    [Produces("application/json")]
+    public async Task<ActionResult<int>> Create([FromBody] CreateShoppingListItemRequest request)
+    {
+        var command = new CreateShoppingListItemCommand
+        {
+            TeamId = request.TeamId,
+            ProductId = request.ProductId,
+            Name = request.Name,
+            Quantity = request.Quantity,
+            Unit = request.Unit,
+            Category = request.Category,
+            Note = request.Note
+        };
+
+        var result = await _mediator.Send(command);
+
+        return HandleResult(result);
+    }
+
+    [HttpPut("{id}")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "Item updated successfully")]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Item not found")]
+    [SwaggerResponse((int)HttpStatusCode.Forbidden, "Access denied")]
+    public async Task<ActionResult<int>> Update(int id, [FromBody] UpdateShoppingListItemRequest request)
+    {
+        var command = new UpdateShoppingListItemCommand
+        {
+            Id = id,
+            Name = request.Name,
+            Quantity = request.Quantity,
+            Unit = request.Unit,
+            Category = request.Category,
+            Note = request.Note,
+            IsBought = request.IsBought,
+            AssignedToUserId = request.AssignedToUserId
+        };
+
+        var result = await _mediator.Send(command);
+        return HandleResult(result);
+    }
+
+    [HttpDelete("{id}")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "Item deleted successfully")]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Item not found")]
+    [SwaggerResponse((int)HttpStatusCode.Forbidden, "Access denied")]
+    public async Task<ActionResult<int>> Delete(int id)
+    {
+        var result = await _mediator.Send(new DeleteShoppingListItemCommand(id));
+        return HandleResult(result);
+    }
+
+    [HttpPost("teams/{teamId}/finish-shopping")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> FinishShopping(int teamId)
+    {
+        var result = await _mediator.Send(new FinishShoppingCommand(teamId));
+
+        if (!result)
+        {
+            return BadRequest(new { Message = "No bought items found to archive." });
+        }
+
+        return Ok(new { Message = "Shopping list finished and history updated." });
+    }
+}

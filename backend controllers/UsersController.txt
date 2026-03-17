@@ -1,0 +1,113 @@
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using SmartMeal.Application.Users.Commands.AddUserPreference;
+using SmartMeal.Application.Users.Commands.DeleteUserPhoto;
+using SmartMeal.Application.Users.Commands.DeleteUserPreference;
+using SmartMeal.Application.Users.Commands.SetUserPhoto;
+using SmartMeal.Application.Users.Commands.UpdateUserPreferences;
+using SmartMeal.Application.Users.Queries.GetUserName;
+using SmartMeal.Application.Users.Queries.GetUserPhoto;
+using SmartMeal.Application.Users.Queries.GetUserPreferences;
+using SmartMeal.Domain.Enums;
+using SmartMeal.WebApi.Controllers.Common;
+using SmartMeal.WebApi.Models.Users;
+using Swashbuckle.AspNetCore.Annotations;
+using System.Net;
+
+namespace SmartMeal.WebApi.Controllers;
+
+[Route("api/[controller]")]
+[ApiController]
+[Authorize]
+[SwaggerTag("User profile operations: name, photo (Base64) and dietary preferences")]
+public class UsersController : CustomControllerBase
+{
+    private readonly IMediator _mediator;
+
+    public UsersController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    [HttpGet("name")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "User name retrieved successfully", typeof(GetUserNameDto))]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [Produces("application/json")]
+    public async Task<ActionResult<GetUserNameDto>> GetName()
+    {
+        var dto = await _mediator.Send(new GetUserNameQuery());
+        return Ok(dto);
+    }
+
+    [HttpGet("photo")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "User photo (Base64) retrieved successfully", typeof(string))]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [Produces("application/json")]
+    public async Task<ActionResult<string?>> GetPhoto()
+    {
+        var result = await _mediator.Send(new GetUserPhotoQuery());
+        return HandleResult(result);
+    }
+
+    [HttpPut("photo")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Photo saved successfully")]
+    [SwaggerResponse((int)HttpStatusCode.BadRequest, "Invalid request")]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [Consumes("application/json")]
+    public async Task<IActionResult> SetPhoto([FromBody] SetPhotoRequest request)
+    {
+        var result = await _mediator.Send(new SetUserPhotoCommand(request.PhotoBase64));
+        return HandleResult(result);
+    }
+
+    [HttpDelete("photo")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Photo deleted successfully")]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    public async Task<IActionResult> DeletePhoto()
+    {
+        var result = await _mediator.Send(new DeleteUserPhotoCommand());
+        return HandleResult(result);
+    }
+
+    [HttpGet("preferences")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "User dietary preferences retrieved", typeof(List<DietaryPreference>))]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [Produces("application/json")]
+    public async Task<ActionResult<List<DietaryPreference>>> GetPreferences()
+    {
+        var result = await _mediator.Send(new GetUserPreferencesQuery());
+        return HandleResult(result);
+    }
+
+    [HttpPost("preferences")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Preference added successfully")]
+    [SwaggerResponse((int)HttpStatusCode.BadRequest, "Preference already exists or invalid")]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [Consumes("application/json")]
+    public async Task<IActionResult> AddPreference([FromBody] DietaryPreference preference)
+    {
+        var result = await _mediator.Send(new AddUserPreferenceCommand(preference));
+        return HandleResult(result);
+    }
+
+    [HttpPut("preferences")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Preferences replaced successfully")]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [Consumes("application/json")]
+    public async Task<IActionResult> UpdatePreferences([FromBody] UpdatePreferencesRequest request)
+    {
+        var result = await _mediator.Send(new UpdateUserPreferencesCommand(request.Preferences));
+        return HandleResult(result);
+    }
+
+    [HttpDelete("preferences/{preference}")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Preference removed successfully")]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Preference not found")]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    public async Task<IActionResult> DeletePreference(DietaryPreference preference)
+    {
+        var result = await _mediator.Send(new DeleteUserPreferenceCommand(preference));
+        return HandleResult(result);
+    }
+}

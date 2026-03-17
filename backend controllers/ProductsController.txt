@@ -1,0 +1,102 @@
+using System.Net;
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using SmartMeal.Application.Products.Commands.CreateProduct;
+using SmartMeal.Application.Products.Commands.DeleteProduct;
+using SmartMeal.Application.Products.Commands.UpdateProduct;
+using SmartMeal.Application.Products.Queries.GetProductById;
+using SmartMeal.Application.Products.Queries.GetProducts;
+using SmartMeal.Application.Products.Queries.SearchProducts;
+using SmartMeal.Domain.Entities;
+using SmartMeal.WebApi.Controllers.Common;
+using SmartMeal.WebApi.Models.Products;
+using Swashbuckle.AspNetCore.Annotations;
+
+namespace SmartMeal.WebApi.Controllers;
+
+[Route("api/[controller]")]
+[ApiController]
+[Authorize]
+public class ProductsController(IMediator mediator) : CustomControllerBase
+{
+    [HttpGet]
+    [SwaggerResponse((int)HttpStatusCode.OK, "Products retrieved successfully", typeof(List<ProductListItemDto>))]
+    [Produces("application/json")]
+    public async Task<ActionResult<List<ProductListItemDto>>> GetProducts()
+    {
+        var result = await mediator.Send(new GetProductsQuery());
+        return HandleResult(result);
+    }
+
+    [HttpGet("{id:int}")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "Product retrieved successfully", typeof(ProductListItemDto))]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Product not found")]
+    [Produces("application/json")]
+    public async Task<ActionResult<ProductListItemDto>> GetProductById(int id)
+    {
+        var result = await mediator.Send(new GetProductByIdQuery(id));
+        return HandleResult(result);
+    }
+
+    [HttpPost]
+    [SwaggerResponse((int)HttpStatusCode.Created, "Product created successfully", typeof(int))]
+    [SwaggerResponse((int)HttpStatusCode.BadRequest, "Invalid request data")]
+    [SwaggerResponse((int)HttpStatusCode.Conflict, "Product with this name already exists in this category")]
+    [Consumes("application/json")]
+    [Produces("application/json")]
+    public async Task<ActionResult<int>> CreateProduct([FromBody] CreateProductRequest request)
+    {
+        var command = new CreateProductCommand
+        {
+            Name = request.Name,
+            DefaultUnit = request.DefaultUnit,
+            CategoryId = request.CategoryId,
+            ImageBase64 = request.ImageBase64
+        };
+
+        var result = await mediator.Send(command);
+
+        return HandleCreatedResult(result, nameof(GetProductById), new { id = result.Value });
+    }
+
+    [HttpPut("{id:int}")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Product updated successfully")]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Product or category not found")]
+    [SwaggerResponse((int)HttpStatusCode.BadRequest, "Invalid request data")]
+    [SwaggerResponse((int)HttpStatusCode.Conflict, "Product with this name already exists in this category")]
+    [Consumes("application/json")]
+    public async Task<IActionResult> UpdateProduct(int id, [FromBody] UpdateProductRequest request)
+    {
+        var command = new UpdateProductCommand
+        {
+            Id = id,
+            Name = request.Name,
+            DefaultUnit = request.DefaultUnit,
+            CategoryId = request.CategoryId,
+            ImageBase64 = request.ImageBase64
+        };
+
+        var result = await mediator.Send(command);
+        return HandleResult(result);
+    }
+
+    [HttpDelete("{id:int}")]
+    [SwaggerResponse((int)HttpStatusCode.NoContent, "Product deleted successfully")]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Product not found")]
+    public async Task<IActionResult> DeleteProduct(int id)
+    {
+        var result = await mediator.Send(new DeleteProductCommand(id));
+        return HandleResult(result);
+    }
+
+    [HttpGet("search")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "The requested list of products retrieved successfully", typeof(List<GlobalProduct>))]
+    [SwaggerResponse((int)HttpStatusCode.InternalServerError, "Internal server error")]
+    [Produces("application/json")]
+    public async Task<IActionResult> SearchProducts([FromQuery] string q)
+    {
+        var products = await mediator.Send(new SearchProductsQuery { SearchQuery = q });
+        return Ok(products);
+    }
+}
