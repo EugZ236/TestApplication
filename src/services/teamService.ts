@@ -1,5 +1,14 @@
 import api from "./api";
 
+export interface TeamMember {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  avatar?: string;
+  role?: string;
+  lastSeen?: string;
+}
+
 export interface Team {
   id: number;
   name: string;
@@ -7,6 +16,7 @@ export interface Team {
   role: string;
   joinedAt: string;
   memberCount: number;
+  members?: TeamMember[];
 }
 
 const teamService = {
@@ -30,7 +40,12 @@ const teamService = {
   },
 
   deleteTeam: async (id: number): Promise<void> => {
-    await api.delete(`/Teams/${id}`);
+    await api.delete(`/api/Teams/${id}`);
+  },
+
+  getTeamById: async (id: number): Promise<Team> => {
+    const response = await api.get(`/api/Teams/${id}`);
+    return response.data;
   },
 };
 

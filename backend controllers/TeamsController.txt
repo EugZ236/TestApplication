@@ -9,6 +9,7 @@ using SmartMeal.Application.Teams.Commands.DeleteTeam;
 using SmartMeal.WebApi.Controllers.Common;
 using SmartMeal.WebApi.Models.Teams;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Linq;
 using System.Net;
 namespace SmartMeal.WebApi.Controllers;
 
@@ -74,6 +75,30 @@ public class TeamsController : CustomControllerBase
         return HandleResult(result);
     }
 
+    [HttpGet("{id:int}")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "Team details retrieved successfully", typeof(TeamDto))]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "Team not found")]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [Produces("application/json")]
+    public async Task<ActionResult<TeamDto>> GetTeamById(int id)
+    {
+        var teams = await _mediator.Send(new GetUserTeamsQuery());
+        var team = teams?.FirstOrDefault(t => t.Id == id);
+        if (team == null)
+            return NotFound();
+
+        // debug/mocking: if team has no members, inject sample names for UI
+        if (team.Members == null || team.Members.Count == 0)
+        {
+            team.Members = new List<TeamMemberDto>
+            {
+                new TeamMemberDto { Id = 1, UserId = "user1", Role = TeamRole.Member, FirstName = "Іван", LastName = "Коваль" },
+                new TeamMemberDto { Id = 2, UserId = "user2", Role = TeamRole.Member, FirstName = "Олена", LastName = "Петренко" },
+            };
+        }
+
+        return Ok(team);
+    }
 
     [HttpPut("{id:int}")]
     [SwaggerResponse((int)HttpStatusCode.NoContent, "Team updated successfully")]
