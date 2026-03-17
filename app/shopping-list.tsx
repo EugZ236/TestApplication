@@ -29,6 +29,29 @@ export default function ShoppingListPage() {
   const [query, setQuery] = useState("");
   const { user: authUser } = useAuth();
 
+  const teamMembers = Array.isArray(team?.members) ? team.members : [];
+  const totalCount =
+    team?.memberCount ?? Math.max(teamMembers.length, authUser ? 1 : 0);
+  const defaultMember = authUser
+    ? {
+        id: authUser.id ?? "me",
+        firstName: authUser.firstName ?? "Ви",
+        lastName: authUser.lastName ?? "",
+        role: "owner",
+      }
+    : null;
+  const baseMembers =
+    teamMembers.length > 0 ? teamMembers : defaultMember ? [defaultMember] : [];
+  const missing = Math.max(0, totalCount - baseMembers.length);
+  const placeholders = Array.from({ length: missing }, (_, i) => ({
+    id: `unknown-${i + 1}`,
+    firstName: `Учасник ${baseMembers.length + i + 1}`,
+    lastName: "",
+    role: "member",
+    lastSeen: null,
+  }));
+  const participants = [...baseMembers, ...placeholders];
+
   useEffect(() => {
     (async () => {
       try {
@@ -138,7 +161,7 @@ export default function ShoppingListPage() {
     const buyerAvatar =
       Form.buyerId === "me"
         ? (authUser?.avatar ?? null)
-        : ((team?.members || []).find((m: any) => m.id === Form.buyerId)
+        : (participants.find((m: any) => String(m.id) === String(Form.buyerId))
             ?.avatar ?? null);
     const payloadWithAvatar = { ...payload, buyerAvatar };
 
@@ -250,8 +273,8 @@ export default function ShoppingListPage() {
                 it.title?.toLowerCase().includes(query.trim().toLowerCase()),
               )
               .map((item, idx) => {
-                const member = (team?.members || []).find(
-                  (m: any) => m.id === item.buyerId,
+                const member = participants.find(
+                  (m: any) => String(m.id) === String(item.buyerId),
                 );
                 const buyerName =
                   item.buyerId === "me"
@@ -477,8 +500,10 @@ export default function ShoppingListPage() {
                   style={styles.selectInput}
                   onPress={() => {
                     // show simple chooser using Alert with team members
-                    const options = (team?.members || []).map((m: any) => ({
-                      text: `${m.firstName ?? ""} ${m.lastName ?? ""}`,
+                    const options = participants.map((m: any) => ({
+                      text:
+                        `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() ||
+                        "Учасник",
                       onPress: () => setFormField("buyerId", m.id),
                     }));
                     options.unshift({
@@ -487,9 +512,8 @@ export default function ShoppingListPage() {
                     });
                     options.push({
                       text: "Скасувати",
-                      style: "cancel" as const,
+                      onPress: () => {},
                     });
-                    // @ts-ignore - Alert.alert overload accepts third param
                     Alert.alert("Хто купить?", undefined, options);
                   }}
                 >

@@ -40,6 +40,18 @@ public class UsersController : CustomControllerBase
         return Ok(dto);
     }
 
+    [HttpGet("{id}/name")]
+    [SwaggerResponse((int)HttpStatusCode.OK, "User name retrieved successfully", typeof(GetUserNameDto))]
+    [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]
+    [SwaggerResponse((int)HttpStatusCode.NotFound, "User not found")]
+    [Produces("application/json")]
+    public async Task<ActionResult<GetUserNameDto>> GetNameById(string id)
+    {
+        // TODO: implement lookup by user id from database; currently returns current user.
+        var dto = await _mediator.Send(new GetUserNameQuery());
+        return Ok(dto);
+    }
+
     [HttpGet("photo")]
     [SwaggerResponse((int)HttpStatusCode.OK, "User photo (Base64) retrieved successfully", typeof(string))]
     [SwaggerResponse((int)HttpStatusCode.Unauthorized, "User is not authenticated")]

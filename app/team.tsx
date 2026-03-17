@@ -8,15 +8,15 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    Image,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -43,6 +43,7 @@ export default function TeamPage() {
   const [shoppingItems, setShoppingItems] = useState<any[]>([]); // initially empty per requirement
   const [budgetAmount, setBudgetAmount] = useState<number>(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showMembersInSidebar, setShowMembersInSidebar] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -201,6 +202,29 @@ export default function TeamPage() {
     }, [loadShopping]),
   );
 
+  const teamMembers = Array.isArray(team?.members) ? team.members : [];
+  const defaultMember = auth.user
+    ? {
+        id: auth.user.id ?? "me",
+        firstName: auth.user.firstName ?? "Ви",
+        lastName: auth.user.lastName ?? "",
+        role: "owner",
+      }
+    : null;
+  const totalCount =
+    team?.memberCount ?? Math.max(teamMembers.length, defaultMember ? 1 : 0);
+  const baseMembers =
+    teamMembers.length > 0 ? teamMembers : defaultMember ? [defaultMember] : [];
+  const missing = Math.max(0, totalCount - baseMembers.length);
+  const placeholders = Array.from({ length: missing }, (_, i) => ({
+    id: `unknown-${i + 1}`,
+    firstName: `Учасник ${baseMembers.length + i + 1}`,
+    lastName: "",
+    role: "member",
+    lastSeen: null,
+  }));
+  const participants = [...baseMembers, ...placeholders];
+
   const createdLabel = (() => {
     const d = team?.joinedAt ? new Date(team.joinedAt) : new Date();
     return `Створено: ${d.toLocaleString("uk", { month: "short" })} ${d.getFullYear()}`;
@@ -226,7 +250,10 @@ export default function TeamPage() {
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.settings}
-            onPress={() => setSidebarOpen(true)}
+            onPress={() => {
+              setShowMembersInSidebar(false);
+              setSidebarOpen(true);
+            }}
             accessibilityLabel="Відкрити налаштування"
             accessibilityRole="button"
           >
@@ -336,11 +363,11 @@ export default function TeamPage() {
                   const parts: string[] = [];
                   if (it.qty) parts.push(`${it.qty} ${it.unit ?? "шт"}`);
                   if (it.buyerId) {
-                    const member = Array.isArray(team?.members)
-                      ? team.members.find((m: any) => m.id === it.buyerId)
-                      : null;
+                    const member = participants.find(
+                      (m: any) => String(m.id) === String(it.buyerId),
+                    );
                     parts.push(
-                      `Купує ${member ? `${member.firstName ?? ""}` : it.buyerId === "me" ? "Ви" : "Користувач"}`,
+                      `Купує ${member ? `${member.firstName ?? ""}` : it.buyerId === "me" ? "Ви" : "Учасник"}`,
                     );
                   }
                   if (it.comment) parts.push(it.comment);
@@ -507,10 +534,10 @@ export default function TeamPage() {
             <ThemedText type="title" style={{ marginBottom: 12 }}>
               Налаштування
             </ThemedText>
-
             <TouchableOpacity
               style={styles.sidebarItem}
               onPress={async () => {
+                setShowMembersInSidebar(false);
                 setSidebarOpen(false);
                 if (team?.id) {
                   await AsyncStorage.setItem("edit_team_id", String(team.id));
@@ -521,26 +548,86 @@ export default function TeamPage() {
             >
               <ThemedText>Редагувати команду</ThemedText>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.sidebarItem}
               onPress={() => {
+                setShowMembersInSidebar(false);
                 setSidebarOpen(false);
                 setTimeout(() => router.push("/team-qr"), 120);
               }}
-              accessibilityRole="button"
             >
               <ThemedText>QR код команди</ThemedText>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.sidebarItem}
-              onPress={() => {
-                setSidebarOpen(false); /* future: open advanced settings */
-              }}
+              onPress={() => setShowMembersInSidebar(!showMembersInSidebar)}
             >
-              <ThemedText>Додаткові налаштування</ThemedText>
+              <ThemedText>Учасники</ThemedText>
             </TouchableOpacity>
+
+            {showMembersInSidebar ? (
+              <View style={{ marginTop: 12 }}>
+                {participants.length > 0 ? (
+                  participants.map((m: any, i: number) => {
+                    const fullName =
+                      `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() ||
+                      "Учасник";
+                    const onlineText = m.lastSeen
+                      ? `в мережі: ${m.lastSeen}`
+                      : "не в мережі";
+                    return (
+                      <View key={String(m.id ?? i)} style={styles.memberRow}>
+                        <View style={styles.memberAvatarSmall}>
+                          {m.avatar ? (
+                            <Image
+                              source={{ uri: m.avatar }}
+                              style={styles.memberImage}
+                            />
+                          ) : (
+                            <ThemedText
+                              style={{ fontWeight: "700", color: "#1F2937" }}
+                            >
+                              {fullName
+                                .split(" ")
+                                .map((p) => p?.charAt(0))
+                                .join("")
+                                .slice(0, 2)}
+                            </ThemedText>
+                          )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={{ fontWeight: "700" }}>
+                            {fullName}
+                          </ThemedText>
+                          <ThemedText style={{ color: "#666", fontSize: 12 }}>
+                            {onlineText}
+                          </ThemedText>
+                        </View>
+                        {m.role === "owner" ? (
+                          <View style={styles.youBadgeSmall}>
+                            <ThemedText
+                              style={{ color: "#007AFF", fontSize: 11 }}
+                            >
+                              Адмін
+                            </ThemedText>
+                          </View>
+                        ) : null}
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={{ paddingVertical: 12 }}>
+                    <ThemedText style={{ color: "#666" }}>
+                      У команді {team?.memberCount ?? participants.length}{" "}
+                      учасників.
+                    </ThemedText>
+                    <ThemedText style={{ color: "#999", marginTop: 4 }}>
+                      Інформація про учасників недоступна.
+                    </ThemedText>
+                  </View>
+                )}
+              </View>
+            ) : null}
 
             <View style={{ flex: 1 }} />
             <TouchableOpacity
@@ -714,6 +801,47 @@ const styles = StyleSheet.create({
     borderColor: "#F1F4F8",
   },
   sidebarItem: { paddingVertical: 12 },
+  sidebarTabRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  sidebarTab: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#fff",
+    alignItems: "center",
+  },
+  sidebarTabActive: {
+    backgroundColor: "#2F80ED",
+    borderColor: "#2F80ED",
+  },
+  sidebarTabText: { color: "#111", fontWeight: "600" },
+  sidebarTabTextActive: { color: "#fff", fontWeight: "700" },
+  memberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderColor: "#F1F4F8",
+  },
+  memberAvatarSmall: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F3F6FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+    overflow: "hidden",
+  },
+  youBadgeSmall: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
 
   quickAddRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   quickInput: {
