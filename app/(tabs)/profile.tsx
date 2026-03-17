@@ -41,7 +41,7 @@ export default function ProfilePage() {
               <Ionicons name="qr-code-outline" size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.headerIcon}
+              style={[styles.headerIcon, styles.headerIconLower]}
               onPress={() => router.push("/settings")}
             >
               <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
@@ -165,6 +165,9 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerIconLower: {
+    marginTop: 8,
   },
   avatarWrap: {
     alignItems: "center",

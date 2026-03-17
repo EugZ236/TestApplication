@@ -2,20 +2,21 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
 import productService from "@/src/services/productService";
+import shoppingListService from "@/src/services/shoppingListService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -39,24 +40,46 @@ export default function ShoppingListPage() {
         const id = await AsyncStorage.getItem(VIEW_TEAM_KEY);
         const raw = await AsyncStorage.getItem(TEAM_STORAGE_KEY);
         const list = raw ? JSON.parse(raw) : [];
-        const found = list.find((t: any) => t.id === id) || null;
+        const found =
+          list.find((t: any) => {
+            if (t?.id == null || id == null) return false;
+            return String(t.id) === String(id);
+          }) || null;
         setTeam(found);
 
         // Attempt to load persisted shopping list for the team (key: shopping_<teamId>)
         // If nothing stored — keep `items` empty (requirement)
         if (found?.id) {
-          const shoppingRaw = await AsyncStorage.getItem(
-            `shopping_${found.id}`,
-          );
-          if (shoppingRaw) {
-            try {
-              const parsed = JSON.parse(shoppingRaw);
-              setItems(Array.isArray(parsed) ? parsed : []);
-            } catch {
+          try {
+            const remote = await shoppingListService.getByTeam(
+              Number(found.id),
+            );
+            const mapped = (Array.isArray(remote) ? remote : []).map(
+              (item: any) => ({
+                id: item.id,
+                title: item.name ?? "Продукт",
+                section: item.category ?? "",
+                qty: item.quantity ?? 1,
+                unit: item.unit ?? "шт",
+                note: item.note ?? "",
+              }),
+            );
+            setItems(mapped);
+          } catch (err) {
+            console.warn("Не вдалося завантажити список із сервера", err);
+            const shoppingRaw = await AsyncStorage.getItem(
+              `shopping_${found.id}`,
+            );
+            if (shoppingRaw) {
+              try {
+                const parsed = JSON.parse(shoppingRaw);
+                setItems(Array.isArray(parsed) ? parsed : []);
+              } catch {
+                setItems([]);
+              }
+            } else {
               setItems([]);
             }
-          } else {
-            setItems([]);
           }
         }
       } catch (e) {

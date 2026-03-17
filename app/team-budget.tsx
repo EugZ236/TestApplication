@@ -3,11 +3,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -48,7 +48,11 @@ export default function TeamBudgetPage() {
         const id = await AsyncStorage.getItem(VIEW_TEAM_KEY);
         const raw = await AsyncStorage.getItem(TEAM_STORAGE_KEY);
         const list = raw ? JSON.parse(raw) : [];
-        const found = list.find((t: any) => t.id === id) || null;
+        const found =
+          list.find((t: any) => {
+            if (t?.id == null || id == null) return false;
+            return String(t.id) === String(id);
+          }) || null;
         setTeam(found);
       } catch (e) {
         console.error(e);

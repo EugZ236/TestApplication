@@ -4,23 +4,27 @@ import { useAuth } from "@/context/AuthContext";
 import { showToast } from "@/utils/toast";
 import { isValidEmail, validatePassword } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
+import messaging from "@react-native-firebase/messaging";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import messaging from "@react-native-firebase/messaging";
 
 async function getFcmToken() {
-  const token = await messaging().getToken();
-  // Как правило, тут отправляют токен на сервер
-  console.log('FCM Token:', token);
-  return token;
+  try {
+    const token = await messaging().getToken();
+    console.log("FCM Token:", token);
+    return token;
+  } catch (error) {
+    console.error("FCM token error:", error);
+    return null;
+  }
 }
 
 export default function RegisterPage() {
@@ -64,7 +68,13 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      await register(firstName, lastName, email, password, await getFcmToken());
+      const deviceToken = await getFcmToken();
+      if (!deviceToken) {
+        throw new Error(
+          "Не вдалося отримати токен пушів. Дозвольте повідомлення.",
+        );
+      }
+      await register(firstName, lastName, email, password, deviceToken);
       showToast.success("Success", "Welcome to SmartMeal! 👋");
       router.replace("/welcome");
     } catch (error: any) {

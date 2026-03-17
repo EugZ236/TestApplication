@@ -7,13 +7,13 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Image,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -41,7 +41,11 @@ export default function TeamPage() {
         const id = await AsyncStorage.getItem(VIEW_TEAM_KEY);
         const raw = await AsyncStorage.getItem(TEAM_STORAGE_KEY);
         const list = raw ? JSON.parse(raw) : [];
-        const found = list.find((t: any) => t.id === id) || null;
+        const found =
+          list.find((t: any) => {
+            if (t?.id == null || id == null) return false;
+            return String(t.id) === String(id);
+          }) || null;
         setQrLink(
           found
             ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${found.id}`
@@ -76,7 +80,11 @@ export default function TeamPage() {
       const id = await AsyncStorage.getItem(VIEW_TEAM_KEY);
       const raw = await AsyncStorage.getItem(TEAM_STORAGE_KEY);
       const list = raw ? JSON.parse(raw) : [];
-      const found = list.find((t: any) => t.id === id) || null;
+      const found =
+        list.find((t: any) => {
+          if (t?.id == null || id == null) return false;
+          return String(t.id) === String(id);
+        }) || null;
       if (!found?.id) return;
       const shoppingRaw = await AsyncStorage.getItem(`shopping_${found.id}`);
       if (shoppingRaw) {

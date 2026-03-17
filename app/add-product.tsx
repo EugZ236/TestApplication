@@ -5,14 +5,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -26,20 +25,17 @@ export default function AddProductPage() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<{
-    id: number;
-    name: string;
-  } | null>(null);
-  const [productName, setProductName] = useState("");
-
   useEffect(() => {
     (async () => {
       try {
         const id = await AsyncStorage.getItem(VIEW_TEAM_KEY);
         const raw = await AsyncStorage.getItem(TEAM_STORAGE_KEY);
         const list = raw ? JSON.parse(raw) : [];
-        const found = list.find((t: any) => t.id === id) || null;
+        const found =
+          list.find((t: any) => {
+            if (t?.id == null || id == null) return false;
+            return String(t.id) === String(id);
+          }) || null;
         setTeam(found);
       } catch (err) {
         console.error(err);
@@ -66,34 +62,6 @@ export default function AddProductPage() {
       }
     })();
   }, []);
-
-  const saveProduct = async () => {
-    if (!selectedCategory || !productName.trim()) {
-      return;
-    }
-    try {
-      const teamId = team?.id ?? "default";
-      const key = `shopping_${teamId}`;
-      const raw = await AsyncStorage.getItem(key);
-      const list = raw ? JSON.parse(raw) : [];
-      const next = [
-        {
-          id: Date.now(),
-          title: productName.trim(),
-          section: selectedCategory.name,
-          qty: 1,
-          unit: "шт",
-        },
-        ...list,
-      ];
-      await AsyncStorage.setItem(key, JSON.stringify(next));
-      setShowModal(false);
-      setProductName("");
-      router.back();
-    } catch (e) {
-      console.error("save product", e);
-    }
-  };
 
   return (
     <ThemedView style={styles.container}>
@@ -131,14 +99,18 @@ export default function AddProductPage() {
           <ThemedText style={{ color: "#d00" }}>{error}</ThemedText>
         </View>
       ) : (
-        <View style={styles.grid}>
+        <ScrollView
+          style={styles.gridScroll}
+          contentContainerStyle={styles.grid}
+        >
           {categories.map((category) => (
             <TouchableOpacity
               key={category.id}
               style={styles.categoryCard}
               onPress={() => {
-                setSelectedCategory(category);
-                setShowModal(true);
+                router.push(
+                  `/category/${category.id}?name=${encodeURIComponent(category.name)}`,
+                );
               }}
             >
               <View style={styles.categoryIcon} />
@@ -147,7 +119,7 @@ export default function AddProductPage() {
               </ThemedText>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       )}
 
       <View style={styles.bottomBar}>
@@ -157,43 +129,15 @@ export default function AddProductPage() {
             <Text style={{ color: "#fff", fontSize: 12 }}>2</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={() => router.push("/shopping-list")}
+        >
           <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
             + Додати свій продукт
           </ThemedText>
         </TouchableOpacity>
       </View>
-
-      <Modal visible={showModal} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          style={styles.modalWrapper}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <View style={styles.modalCard}>
-            <ThemedText type="title">Додати продукт</ThemedText>
-            <ThemedText style={{ marginBottom: 8 }}>
-              {selectedCategory?.name}
-            </ThemedText>
-            <TextInput
-              placeholder="Назва продукту"
-              style={styles.titleInput}
-              value={productName}
-              onChangeText={setProductName}
-            />
-            <TouchableOpacity style={styles.saveBtn} onPress={saveProduct}>
-              <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-                Додати
-              </ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{ marginTop: 8 }}
-              onPress={() => setShowModal(false)}
-            >
-              <ThemedText style={{ color: "#007AFF" }}>Скасувати</ThemedText>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </ThemedView>
   );
 }
@@ -229,12 +173,14 @@ const styles = StyleSheet.create({
   },
   sectionHeader: { paddingHorizontal: 16, marginTop: 14, marginBottom: 6 },
   sectionLabel: { fontSize: 12, fontWeight: "700", color: "#999" },
+  gridScroll: { flex: 1 },
   grid: {
     paddingHorizontal: 12,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
     justifyContent: "space-between",
+    paddingBottom: 20,
   },
   categoryCard: {
     width: "48%",

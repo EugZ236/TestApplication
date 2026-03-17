@@ -20,6 +20,10 @@ Notifications.setNotificationHandler({
   }),
 });
 
+messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+  console.log("Background FCM message:", remoteMessage);
+});
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
 

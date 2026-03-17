@@ -10,18 +10,18 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  RefreshControl,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    RefreshControl,
+    Share,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const getAvatarColor = (name: string) => {
@@ -175,6 +175,11 @@ export default function TeamsScreen() {
             <TouchableOpacity
               style={styles.teamRow}
               onPress={async () => {
+                try {
+                  await AsyncStorage.setItem("teams_v1", JSON.stringify(teams));
+                } catch (e) {
+                  console.error("Не вдалося зберегти teams_v1", e);
+                }
                 await AsyncStorage.setItem("view_team_id", String(item.id));
                 router.push("/team");
               }}
