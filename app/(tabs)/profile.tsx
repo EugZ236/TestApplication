@@ -1,33 +1,137 @@
+import { useAuth } from "@/context/AuthContext";
+import { getDietaryPreferenceOption } from "@/src/constants/dietaryPreferences";
+import userService from "@/src/services/userService";
+import { showToast } from "@/utils/toast";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-
-const profile = {
-  name: "Олександр Петренко",
-  handle: "@alex_p",
-  plan: "Premium Plan",
-  stats: [
-    { label: "ЧЕКІВ/МІС", value: "12", tone: "blue" },
-    { label: "ЗБЕРЕЖЕНО", value: "₴4k", tone: "green" },
-    { label: "КОМАНДИ", value: "3", tone: "purple" },
-  ],
-  preferences: ["Без глютену", "Кето", "Люблю гостре"],
-  teams: [
-    { name: "Сім'я", role: "Адміністратор", tone: "purple" },
-    { name: "Офіс IT", role: "Учасник", tone: "orange" },
-  ],
-};
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { user } = useAuth();
+
+  const [firstName, setFirstName] = useState("Користувач");
+  const [lastName, setLastName] = useState("");
+  const [handle, setHandle] = useState("");
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [preferences, setPreferences] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
+
+  const fallbackFirstName = useMemo(
+    () => user?.firstName?.trim() || "Користувач",
+    [user?.firstName],
+  );
+
+  const fallbackLastName = useMemo(
+    () => user?.lastName?.trim() || "",
+    [user?.lastName],
+  );
+
+  const displayName = useMemo(() => {
+    const fullName = `${firstName} ${lastName}`.trim();
+    return fullName || "Користувач";
+  }, [firstName, lastName]);
+
+  const loadProfile = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [nameData, photoData, preferencesData] = await Promise.all([
+        userService.getName(),
+        userService.getPhoto(),
+        userService.getPreferences(),
+      ]);
+
+      setFirstName((nameData?.firstName ?? "").trim() || fallbackFirstName);
+      setLastName((nameData?.lastName ?? "").trim() || fallbackLastName);
+      setHandle(user?.email ? `@${user.email}` : "@profile");
+      setAvatar(photoData || null);
+      setPreferences(Array.isArray(preferencesData) ? preferencesData : []);
+    } catch (error: any) {
+      console.error("[Profile] Помилка завантаження:", error?.message);
+      setFirstName(fallbackFirstName);
+      setLastName(fallbackLastName);
+      setHandle(user?.email ? `@${user.email}` : "@profile");
+      setAvatar(null);
+      setPreferences([]);
+      Alert.alert("Помилка", "Не вдалося завантажити дані профілю.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fallbackFirstName, fallbackLastName, user?.email]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile]),
+  );
+
+  const initials = useMemo(() => {
+    return displayName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("");
+  }, [displayName]);
+
+  const onPickPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showToast.info(
+        "Доступ заборонено",
+        "Надайте доступ до галереї в налаштуваннях",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+      base64: true,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    const selected = result.assets?.[0];
+    if (!selected?.base64) {
+      showToast.error(
+        "Помилка",
+        "Не вдалося підготувати фото для завантаження",
+      );
+      return;
+    }
+
+    const mimeType = selected.mimeType || "image/jpeg";
+    const photoBase64 = `data:${mimeType};base64,${selected.base64}`;
+
+    setIsSavingPhoto(true);
+    try {
+      await userService.savePhoto(photoBase64);
+      setAvatar(photoBase64);
+      showToast.success("Готово", "Фото профілю оновлено");
+    } catch (error: any) {
+      console.error("[Profile] Не вдалося зберегти фото:", error?.message);
+      showToast.error("Помилка", "Не вдалося оновити фото");
+    } finally {
+      setIsSavingPhoto(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -37,9 +141,6 @@ export default function ProfilePage() {
       >
         <View style={styles.header}>
           <View style={styles.headerRow}>
-            <TouchableOpacity style={styles.headerIcon}>
-              <Ionicons name="qr-code-outline" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.headerIcon, styles.headerIconLower]}
               onPress={() => router.push("/settings")}
@@ -50,90 +151,71 @@ export default function ProfilePage() {
 
           <View style={styles.avatarWrap}>
             <View style={styles.avatarRing}>
-              <Image
-                source={{ uri: "https://i.pravatar.cc/300?img=13" }}
-                style={styles.avatar}
-              />
+              {avatar ? (
+                <Image source={{ uri: avatar }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarFallback]}>
+                  <Text style={styles.avatarFallbackText}>
+                    {initials || "?"}
+                  </Text>
+                </View>
+              )}
             </View>
-            <TouchableOpacity style={styles.cameraButton}>
-              <Ionicons name="camera" size={18} color="#1A1A1A" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.profileBlock}>
-          <Text style={styles.name}>{profile.name}</Text>
-          <Text style={styles.planLine}>
-            <Text style={styles.handle}>{profile.handle}</Text>
-            <Text style={styles.dot}> • </Text>
-            <Text style={styles.plan}>{profile.plan}</Text>
-            <Text style={styles.sparkle}> ✨</Text>
-          </Text>
-        </View>
-
-        <View style={styles.statsRow}>
-          {profile.stats.map((stat) => (
-            <View
-              key={stat.label}
-              style={[styles.statCard, styles[`stat_${stat.tone}`]]}
+            <TouchableOpacity
+              style={styles.cameraButton}
+              onPress={onPickPhoto}
+              disabled={isSavingPhoto}
             >
-              <Text
-                style={[styles.statValue, styles[`statValue_${stat.tone}`]]}
-              >
-                {stat.value}
-              </Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Мої вподобання</Text>
-            <TouchableOpacity>
-              <Text style={styles.sectionAction}>Змінити</Text>
+              <Ionicons
+                name={isSavingPhoto ? "sync" : "camera"}
+                size={18}
+                color="#1A1A1A"
+              />
             </TouchableOpacity>
           </View>
-          <View style={styles.chipsRow}>
-            <View style={styles.chip}>
-              <Text style={styles.chipIcon}>🚫</Text>
-              <Text style={styles.chipText}>{profile.preferences[0]}</Text>
-            </View>
-            <View style={styles.chip}>
-              <Text style={styles.chipIcon}>🥑</Text>
-              <Text style={styles.chipText}>{profile.preferences[1]}</Text>
-            </View>
-            <View style={styles.chip}>
-              <Text style={styles.chipIcon}>🌶️</Text>
-              <Text style={styles.chipText}>{profile.preferences[2]}</Text>
-            </View>
-          </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Мої команди</Text>
-          <View style={styles.teamCard}>
-            <View style={[styles.teamIcon, styles.teamIconPurple]}>
-              <Ionicons name="home" size={18} color="#8B5CF6" />
-            </View>
-            <View style={styles.teamText}>
-              <Text style={styles.teamName}>{profile.teams[0].name}</Text>
-              <Text style={styles.teamRole}>{profile.teams[0].role}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#B8C2D1" />
+        {isLoading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color="#2C64E0" />
+            <Text style={styles.loadingText}>Оновлення профілю...</Text>
           </View>
+        ) : (
+          <>
+            <View style={styles.profileBlock}>
+              <Text style={styles.name} numberOfLines={1}>
+                {displayName}
+              </Text>
+              <Text style={styles.handle}>{handle}</Text>
+            </View>
 
-          <View style={styles.teamCard}>
-            <View style={[styles.teamIcon, styles.teamIconOrange]}>
-              <Ionicons name="briefcase" size={18} color="#F97316" />
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Мої вподобання</Text>
+                <TouchableOpacity onPress={() => router.push("/settings")}>
+                  <Text style={styles.sectionAction}>Змінити</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.chipsRow}>
+                {preferences.length === 0 ? (
+                  <Text style={styles.emptyText}>
+                    Ще немає обраних вподобань.
+                  </Text>
+                ) : (
+                  preferences.map((id) => {
+                    const option = getDietaryPreferenceOption(id);
+                    return (
+                      <View style={styles.chip} key={id}>
+                        <Text style={styles.chipIcon}>{option.emoji}</Text>
+                        <Text style={styles.chipText}>{option.label}</Text>
+                      </View>
+                    );
+                  })
+                )}
+              </View>
             </View>
-            <View style={styles.teamText}>
-              <Text style={styles.teamName}>{profile.teams[1].name}</Text>
-              <Text style={styles.teamRole}>{profile.teams[1].role}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#B8C2D1" />
-          </View>
-        </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -157,7 +239,7 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     alignItems: "center",
   },
   headerIcon: {
@@ -191,6 +273,16 @@ const styles = StyleSheet.create({
     height: 108,
     borderRadius: 54,
   },
+  avatarFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E8F0FF",
+  },
+  avatarFallbackText: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: "#1D4ED8",
+  },
   cameraButton: {
     position: "absolute",
     bottom: 6,
@@ -214,69 +306,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 16,
   },
+  loadingWrap: {
+    paddingVertical: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    color: "#64748B",
+  },
   name: {
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: "700",
     color: "#1B1F2A",
-  },
-  planLine: {
-    marginTop: 6,
-    fontSize: 14,
-    color: "#98A2B3",
+    textAlign: "center",
+    paddingHorizontal: 16,
   },
   handle: {
+    marginTop: 8,
     color: "#9AA4B2",
-  },
-  dot: {
-    color: "#C0C6D4",
-  },
-  plan: {
-    color: "#9AA4B2",
-    fontWeight: "600",
-  },
-  sparkle: {
-    color: "#9AA4B2",
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 20,
-    paddingHorizontal: 20,
-  },
-  statCard: {
-    flex: 1,
-    paddingVertical: 16,
-    marginHorizontal: 6,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  stat_blue: {
-    backgroundColor: "#EEF4FF",
-  },
-  stat_green: {
-    backgroundColor: "#ECFDF3",
-  },
-  stat_purple: {
-    backgroundColor: "#F6F2FF",
-  },
-  statValue_blue: {
-    color: "#3366FF",
-  },
-  statValue_green: {
-    color: "#16A34A",
-  },
-  statValue_purple: {
-    color: "#8B5CF6",
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  statLabel: {
-    marginTop: 6,
-    fontSize: 12,
-    color: "#94A3B8",
-    letterSpacing: 0.6,
+    fontSize: 14,
   },
   section: {
     marginTop: 24,
@@ -321,46 +370,8 @@ const styles = StyleSheet.create({
     color: "#475569",
     fontWeight: "600",
   },
-  teamCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#EDF0F6",
-    marginTop: 12,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  teamIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  teamIconPurple: {
-    backgroundColor: "#F1E8FF",
-  },
-  teamIconOrange: {
-    backgroundColor: "#FFEAD5",
-  },
-  teamText: {
-    flex: 1,
-  },
-  teamName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  teamRole: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "#9AA4B2",
+  emptyText: {
+    color: "#94A3B8",
+    fontSize: 14,
   },
 });
