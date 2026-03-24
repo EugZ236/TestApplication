@@ -85,17 +85,19 @@ function RootLayoutContent() {
 
         const messaging = getFirebaseMessaging();
         if (messaging) {
-          messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
-            console.log("[BG] FCM message", remoteMessage);
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: remoteMessage.notification?.title ?? "SmartMeal",
-                body: remoteMessage.notification?.body ?? "New notification",
-                data: remoteMessage.data ?? {},
-              },
-              trigger: null,
-            });
-          });
+          messaging().setBackgroundMessageHandler(
+            async (remoteMessage: any) => {
+              console.log("[BG] FCM message", remoteMessage);
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title: remoteMessage.notification?.title ?? "SmartMeal",
+                  body: remoteMessage.notification?.body ?? "New notification",
+                  data: remoteMessage.data ?? {},
+                },
+                trigger: null,
+              });
+            },
+          );
         }
       } catch (error) {
         console.error("Notification init error", error);

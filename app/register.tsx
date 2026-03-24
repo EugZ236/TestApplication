@@ -7,9 +7,12 @@ import { isValidEmail, validatePassword } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -74,8 +77,20 @@ export default function RegisterPage() {
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const fieldYRef = useRef({
+    firstName: 0,
+    lastName: 0,
+    email: 0,
+    password: 0,
+    confirmPassword: 0,
+  });
   const router = useRouter();
   const { register } = useAuth();
+
+  const scrollToField = (y: number) => {
+    scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
+  };
 
   const handleRegister = async () => {
     setEmailError("");
@@ -123,97 +138,150 @@ export default function RegisterPage() {
 
   return (
     <ThemedView style={styles.container}>
-      <TouchableOpacity style={styles.headerImage} activeOpacity={0.8}>
-        <Ionicons name="image-outline" size={36} color="#9BBCE0" />
-      </TouchableOpacity>
-
-      <View style={styles.content}>
-        <ThemedText type="title">Sign up</ThemedText>
-        <Text style={styles.subtitle}>Create an account to get started</Text>
-
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="First name"
-            placeholderTextColor="#888"
-            value={firstName}
-            onChangeText={setFirstName}
-            editable={!isLoading}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Last name"
-            placeholderTextColor="#888"
-            value={lastName}
-            onChangeText={setLastName}
-            editable={!isLoading}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Email Address"
-            placeholderTextColor="#888"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-            editable={!isLoading}
-          />
-          {emailError ? (
-            <Text style={styles.errorText}>{emailError}</Text>
-          ) : null}
-          <PasswordInput
-            placeholder="Create a password"
-            placeholderTextColor="#888"
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            editable={!isLoading}
-          />
-          {passwordError ? (
-            <Text style={styles.errorText}>{passwordError}</Text>
-          ) : null}
-          <PasswordInput
-            placeholder="Confirm password"
-            placeholderTextColor="#888"
-            style={styles.input}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            editable={!isLoading}
-          />
-          {confirmPasswordError ? (
-            <Text style={styles.errorText}>{confirmPasswordError}</Text>
-          ) : null}
-        </View>
-
-        <TouchableOpacity
-          style={[
-            styles.primaryButton,
-            isLoading && styles.primaryButtonDisabled,
-          ]}
-          onPress={handleRegister}
-          disabled={isLoading}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoiding}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {isLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.primaryButtonText}>Sign up</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.headerImage} activeOpacity={0.8}>
+            <Ionicons name="image-outline" size={36} color="#9BBCE0" />
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.ghostButton}
-          onPress={() => router.push("/login")}
-        >
-          <Text style={styles.ghostButtonText}>
-            Already have an account? Log in
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.content}>
+            <ThemedText type="title">Sign up</ThemedText>
+            <Text style={styles.subtitle}>
+              Create an account to get started
+            </Text>
+
+            <View style={styles.form}>
+              <View
+                onLayout={(e) => {
+                  fieldYRef.current.firstName = e.nativeEvent.layout.y;
+                }}
+              >
+                <TextInput
+                  style={styles.input}
+                  placeholder="First name"
+                  placeholderTextColor="#888"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  editable={!isLoading}
+                  onFocus={() => scrollToField(fieldYRef.current.firstName)}
+                />
+              </View>
+              <View
+                onLayout={(e) => {
+                  fieldYRef.current.lastName = e.nativeEvent.layout.y;
+                }}
+              >
+                <TextInput
+                  style={styles.input}
+                  placeholder="Last name"
+                  placeholderTextColor="#888"
+                  value={lastName}
+                  onChangeText={setLastName}
+                  editable={!isLoading}
+                  onFocus={() => scrollToField(fieldYRef.current.lastName)}
+                />
+              </View>
+              <View
+                onLayout={(e) => {
+                  fieldYRef.current.email = e.nativeEvent.layout.y;
+                }}
+              >
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email Address"
+                  placeholderTextColor="#888"
+                  keyboardType="email-address"
+                  value={email}
+                  onChangeText={setEmail}
+                  editable={!isLoading}
+                  onFocus={() => scrollToField(fieldYRef.current.email)}
+                />
+              </View>
+              {emailError ? (
+                <Text style={styles.errorText}>{emailError}</Text>
+              ) : null}
+              <View
+                onLayout={(e) => {
+                  fieldYRef.current.password = e.nativeEvent.layout.y;
+                }}
+              >
+                <PasswordInput
+                  placeholder="Create a password"
+                  placeholderTextColor="#888"
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  editable={!isLoading}
+                  onFocus={() => scrollToField(fieldYRef.current.password)}
+                />
+              </View>
+              {passwordError ? (
+                <Text style={styles.errorText}>{passwordError}</Text>
+              ) : null}
+              <View
+                onLayout={(e) => {
+                  fieldYRef.current.confirmPassword = e.nativeEvent.layout.y;
+                }}
+              >
+                <PasswordInput
+                  placeholder="Confirm password"
+                  placeholderTextColor="#888"
+                  style={styles.input}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  editable={!isLoading}
+                  onFocus={() =>
+                    scrollToField(fieldYRef.current.confirmPassword)
+                  }
+                />
+              </View>
+              {confirmPasswordError ? (
+                <Text style={styles.errorText}>{confirmPasswordError}</Text>
+              ) : null}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                isLoading && styles.primaryButtonDisabled,
+              ]}
+              onPress={handleRegister}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Sign up</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.ghostButton}
+              onPress={() => router.push("/login")}
+            >
+              <Text style={styles.ghostButtonText}>
+                Already have an account? Log in
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
+  keyboardAvoiding: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
   headerImage: {
     height: 200,
     backgroundColor: "#F5F7FA",

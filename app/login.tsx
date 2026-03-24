@@ -6,9 +6,12 @@ import { showToast } from "@/utils/toast";
 import { isValidEmail, validatePassword } from "@/utils/validation";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -22,8 +25,14 @@ export default function LoginPage() {
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const fieldYRef = useRef({ email: 0, password: 0 });
   const router = useRouter();
   const { login } = useAuth();
+
+  const scrollToField = (y: number) => {
+    scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
+  };
 
   const handleLogin = async () => {
     setEmailError("");
@@ -59,106 +68,134 @@ export default function LoginPage() {
 
   return (
     <ThemedView style={styles.container}>
-      <TouchableOpacity style={styles.headerImage} activeOpacity={0.8}>
-        <Image
-          source={require("@/assets/images/login-header.png")}
-          style={styles.headerImageImage}
-          contentFit="cover"
-        />
-      </TouchableOpacity>
-
-      <View style={styles.content}>
-        <ThemedText type="title">Welcome!</ThemedText>
-
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email Address"
-            placeholderTextColor="#888"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-            editable={!isLoading}
-          />
-          {emailError ? (
-            <Text style={styles.errorText}>{emailError}</Text>
-          ) : null}
-          <PasswordInput
-            placeholder="Password"
-            placeholderTextColor="#888"
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            editable={!isLoading}
-          />
-          {passwordError ? (
-            <Text style={styles.errorText}>{passwordError}</Text>
-          ) : null}
-        </View>
-
-        <TouchableOpacity
-          style={{ alignSelf: "flex-start", marginBottom: 8 }}
-          onPress={() => {
-            showToast.info(
-              "Coming Soon",
-              "Password recovery is under development 🛠️",
-            );
-          }}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoiding}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.forgotText}>Forgot password?</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.primaryButton,
-            isLoading && styles.primaryButtonDisabled,
-          ]}
-          onPress={handleLogin}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.primaryButtonText}>Login</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.registerRow}
-          onPress={() => router.push("/register")}
-        >
-          <Text style={styles.notMember}>Not a member? </Text>
-          <Text style={styles.registerLink}>Register now</Text>
-        </TouchableOpacity>
-
-        <View style={styles.separator} />
-
-        <Text style={styles.orText}>Or continue with</Text>
-
-        <View style={styles.socialRow}>
-          <TouchableOpacity
-            style={[styles.socialButton, { backgroundColor: "#DB4437" }]}
-          >
-            <Text style={styles.socialText}>G</Text>
+          <TouchableOpacity style={styles.headerImage} activeOpacity={0.8}>
+            <Image
+              source={require("@/assets/images/login-header.png")}
+              style={styles.headerImageImage}
+              contentFit="cover"
+            />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.socialButton, { backgroundColor: "#111" }]}
-          >
-            <Text style={styles.socialText}></Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.socialButton, { backgroundColor: "#1877F2" }]}
-          >
-            <Text style={styles.socialText}>f</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+
+          <View style={styles.content}>
+            <ThemedText type="title">Welcome!</ThemedText>
+
+            <View style={styles.form}>
+              <View
+                onLayout={(e) => {
+                  fieldYRef.current.email = e.nativeEvent.layout.y;
+                }}
+              >
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email Address"
+                  placeholderTextColor="#888"
+                  keyboardType="email-address"
+                  value={email}
+                  onChangeText={setEmail}
+                  editable={!isLoading}
+                  onFocus={() => scrollToField(fieldYRef.current.email)}
+                />
+              </View>
+              {emailError ? (
+                <Text style={styles.errorText}>{emailError}</Text>
+              ) : null}
+              <View
+                onLayout={(e) => {
+                  fieldYRef.current.password = e.nativeEvent.layout.y;
+                }}
+              >
+                <PasswordInput
+                  placeholder="Password"
+                  placeholderTextColor="#888"
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  editable={!isLoading}
+                  onFocus={() => scrollToField(fieldYRef.current.password)}
+                />
+              </View>
+              {passwordError ? (
+                <Text style={styles.errorText}>{passwordError}</Text>
+              ) : null}
+            </View>
+
+            <TouchableOpacity
+              style={{ alignSelf: "flex-start", marginBottom: 8 }}
+              onPress={() => {
+                showToast.info(
+                  "Coming Soon",
+                  "Password recovery is under development 🛠️",
+                );
+              }}
+            >
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                isLoading && styles.primaryButtonDisabled,
+              ]}
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Login</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.registerRow}
+              onPress={() => router.push("/register")}
+            >
+              <Text style={styles.notMember}>Not a member? </Text>
+              <Text style={styles.registerLink}>Register now</Text>
+            </TouchableOpacity>
+
+            <View style={styles.separator} />
+
+            <Text style={styles.orText}>Or continue with</Text>
+
+            <View style={styles.socialRow}>
+              <TouchableOpacity
+                style={[styles.socialButton, { backgroundColor: "#DB4437" }]}
+              >
+                <Text style={styles.socialText}>G</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.socialButton, { backgroundColor: "#111" }]}
+              >
+                <Text style={styles.socialText}></Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.socialButton, { backgroundColor: "#1877F2" }]}
+              >
+                <Text style={styles.socialText}>f</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
+  keyboardAvoiding: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
   headerImage: {
     height: 220,
     backgroundColor: "#EEF6FF",
