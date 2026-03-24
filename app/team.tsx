@@ -3,6 +3,7 @@ import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
 import productService from "@/src/services/productService";
 import shoppingListService from "@/src/services/shoppingListService";
+import shoppingListSignalRService from "@/src/services/shoppingListSignalRService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -201,6 +202,37 @@ export default function TeamPage() {
       loadShopping();
     }, [loadShopping]),
   );
+
+  // Keep shopping preview on team page synced in real time.
+  useEffect(() => {
+    (async () => {
+      if (!team?.id || !auth.token) {
+        return;
+      }
+
+      try {
+        shoppingListSignalRService.onItemAdded(() => {
+          loadShopping();
+        });
+
+        shoppingListSignalRService.onItemUpdated(() => {
+          loadShopping();
+        });
+
+        shoppingListSignalRService.onItemRemoved(() => {
+          loadShopping();
+        });
+
+        await shoppingListSignalRService.connect(auth.token, Number(team.id));
+      } catch (error) {
+        console.error("Failed to connect SignalR on team page:", error);
+      }
+    })();
+
+    return () => {
+      shoppingListSignalRService.disconnect();
+    };
+  }, [team?.id, auth.token, loadShopping]);
 
   const teamMembers = Array.isArray(team?.members) ? team.members : [];
   const defaultMember = auth.user

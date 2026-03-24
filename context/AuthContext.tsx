@@ -49,8 +49,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     checkAuth();
-    console.log("1. Початок перевірки токена...");
-    checkAuth().then(() => console.log("2. Перевірка завершена"));
   }, []);
   const handleAuthSuccess = async (data: AuthResponse) => {
     const { token: newToken, ...userData } = data;
