@@ -1,5 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { PasswordInput } from "@/components/password-input";
 import { useAuth } from "@/context/AuthContext";
 import { showToast } from "@/utils/toast";
 import { isValidEmail, validatePassword } from "@/utils/validation";
@@ -128,11 +129,10 @@ export default function RegisterPage() {
           {emailError ? (
             <Text style={styles.errorText}>{emailError}</Text>
           ) : null}
-          <TextInput
-            style={styles.input}
+          <PasswordInput
             placeholder="Create a password"
             placeholderTextColor="#888"
-            secureTextEntry
+            style={styles.input}
             value={password}
             onChangeText={setPassword}
             editable={!isLoading}
@@ -140,11 +140,10 @@ export default function RegisterPage() {
           {passwordError ? (
             <Text style={styles.errorText}>{passwordError}</Text>
           ) : null}
-          <TextInput
-            style={styles.input}
+          <PasswordInput
             placeholder="Confirm password"
             placeholderTextColor="#888"
-            secureTextEntry
+            style={styles.input}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             editable={!isLoading}

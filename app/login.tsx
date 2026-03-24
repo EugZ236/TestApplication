@@ -1,3 +1,4 @@
+import { PasswordInput } from "@/components/password-input";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
@@ -82,11 +83,10 @@ export default function LoginPage() {
           {emailError ? (
             <Text style={styles.errorText}>{emailError}</Text>
           ) : null}
-          <TextInput
-            style={styles.input}
+          <PasswordInput
             placeholder="Password"
             placeholderTextColor="#888"
-            secureTextEntry
+            style={styles.input}
             value={password}
             onChangeText={setPassword}
             editable={!isLoading}
