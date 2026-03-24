@@ -1,12 +1,12 @@
+import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
+  StyleSheet,
   TextInput,
+  TextInputProps,
   TouchableOpacity,
   View,
-  StyleSheet,
-  TextInputProps,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 
 interface PasswordInputProps extends Omit<TextInputProps, "secureTextEntry"> {
   containerStyle?: any;
@@ -15,13 +15,8 @@ interface PasswordInputProps extends Omit<TextInputProps, "secureTextEntry"> {
 
 export const PasswordInput = React.forwardRef<TextInput, PasswordInputProps>(
   (
-    {
-      containerStyle,
-      style,
-      iconColor = "#888",
-      ...rest
-    }: PasswordInputProps,
-    ref
+    { containerStyle, style, iconColor = "#888", ...rest }: PasswordInputProps,
+    ref,
   ) => {
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
@@ -50,7 +45,7 @@ export const PasswordInput = React.forwardRef<TextInput, PasswordInputProps>(
         </TouchableOpacity>
       </View>
     );
-  }
+  },
 );
 
 PasswordInput.displayName = "PasswordInput";

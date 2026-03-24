@@ -1,29 +1,65 @@
+import { PasswordInput } from "@/components/password-input";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { PasswordInput } from "@/components/password-input";
 import { useAuth } from "@/context/AuthContext";
 import { showToast } from "@/utils/toast";
 import { isValidEmail, validatePassword } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
-import messaging from "@react-native-firebase/messaging";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+
+function isExpoGo() {
+  return (
+    Constants.appOwnership === "expo" ||
+    Constants.executionEnvironment === "storeClient"
+  );
+}
+
+function getNotificationsModule() {
+  if (isExpoGo()) {
+    return null;
+  }
+
+  try {
+    return require("expo-notifications");
+  } catch {
+    return null;
+  }
+}
 
 async function getFcmToken() {
   try {
+    const mod = require("@react-native-firebase/messaging");
+    const messaging = mod.default ? mod.default : mod;
     const token = await messaging().getToken();
-    console.log("FCM Token:", token);
-    return token;
+    if (token) {
+      console.log("FCM Token:", token);
+      return token;
+    }
   } catch (error) {
-    console.error("FCM token error:", error);
+    console.warn("FCM token unavailable, fallback to Expo token", error);
+  }
+
+  try {
+    const Notifications = getNotificationsModule();
+    if (!Notifications) {
+      return null;
+    }
+
+    const expoToken = (await Notifications.getExpoPushTokenAsync()).data;
+    console.log("Expo Push Token:", expoToken);
+    return expoToken;
+  } catch (error) {
+    console.error("Push token error:", error);
     return null;
   }
 }
@@ -69,12 +105,7 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      const deviceToken = await getFcmToken();
-      if (!deviceToken) {
-        throw new Error(
-          "Не вдалося отримати токен пушів. Дозвольте повідомлення.",
-        );
-      }
+      const deviceToken = (await getFcmToken()) || "";
       await register(firstName, lastName, email, password, deviceToken);
       showToast.success("Success", "Welcome to SmartMeal! 👋");
       router.replace("/welcome");

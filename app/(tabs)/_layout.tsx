@@ -5,29 +5,56 @@ import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-
-import messaging from "@react-native-firebase/messaging";
-import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 
 import { Platform } from "react-native";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+function isExpoGo() {
+  return (
+    Constants.appOwnership === "expo" ||
+    Constants.executionEnvironment === "storeClient"
+  );
+}
 
-messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-  console.log("Background FCM message:", remoteMessage);
-});
+function getNotificationsModule() {
+  if (isExpoGo()) {
+    return null;
+  }
+
+  try {
+    return require("expo-notifications");
+  } catch {
+    return null;
+  }
+}
+
+function getFirebaseMessaging() {
+  try {
+    const mod = require("@react-native-firebase/messaging");
+    return mod.default ? mod.default : mod;
+  } catch {
+    return null;
+  }
+}
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
+    const Notifications = getNotificationsModule();
+    if (!Notifications) {
+      return;
+    }
+
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+
     // 2. Создание канала специально для Android
     async function configureAndroidChannel() {
       if (Platform.OS === "android") {
@@ -41,8 +68,17 @@ export default function TabLayout() {
     }
     configureAndroidChannel();
 
+    const messaging = getFirebaseMessaging();
+    if (!messaging) {
+      return;
+    }
+
+    messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
+      console.log("Background FCM message:", remoteMessage);
+    });
+
     // 3. Прослушивание сообщений от Firebase
-    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
+    const unsubscribe = messaging().onMessage(async (remoteMessage: any) => {
       console.log("FCM Message received in foreground:", remoteMessage);
 
       // 4. Ручной запуск локального уведомления для показа баннера
