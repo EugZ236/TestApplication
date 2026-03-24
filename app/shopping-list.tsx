@@ -2,6 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
 import shoppingListService from "@/src/services/shoppingListService";
+import shoppingListSignalRService from "@/src/services/shoppingListSignalRService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -27,7 +28,7 @@ export default function ShoppingListPage() {
   const [team, setTeam] = useState<any | null>(null);
   const [items, setItems] = useState<any[]>([]); // initially empty per spec
   const [query, setQuery] = useState("");
-  const { user: authUser } = useAuth();
+  const { user: authUser, token } = useAuth();
 
   const teamMembers = Array.isArray(team?.members) ? team.members : [];
   const totalCount =
@@ -106,6 +107,45 @@ export default function ShoppingListPage() {
     })();
   }, []);
 
+  // SignalR real-time updates
+  useEffect(() => {
+    (async () => {
+      if (!team?.id || !token) {
+        return;
+      }
+
+      try {
+        shoppingListSignalRService.onItemAdded((newItem) => {
+          setItems((prev) => {
+            const exists = prev.some((i) => i.id === newItem.id);
+            if (exists) return prev;
+            return [...prev, newItem];
+          });
+        });
+
+        shoppingListSignalRService.onItemUpdated((updatedItem) => {
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === updatedItem.id ? updatedItem : item,
+            ),
+          );
+        });
+
+        shoppingListSignalRService.onItemRemoved((itemId) => {
+          setItems((prev) => prev.filter((item) => item.id !== itemId));
+        });
+
+        await shoppingListSignalRService.connect(token, Number(team.id));
+      } catch (error) {
+        console.error("Failed to connect SignalR:", error);
+      }
+    })();
+
+    return () => {
+      shoppingListSignalRService.disconnect();
+    };
+  }, [team?.id, token]);
+
   // --- modal + form state & persistence handlers
   const [modalVisible, setModalVisible] = React.useState(false);
   const [editingIndex] = React.useState<number | null>(null);
@@ -146,7 +186,7 @@ export default function ShoppingListPage() {
       return;
     }
     const next = [...items];
-    const payload = {
+    const localPayload = {
       id: editingIndex != null ? next[editingIndex].id : Date.now(),
       title: Form.title.trim(),
       section: Form.section,
@@ -163,11 +203,40 @@ export default function ShoppingListPage() {
         ? (authUser?.avatar ?? null)
         : (participants.find((m: any) => String(m.id) === String(Form.buyerId))
             ?.avatar ?? null);
-    const payloadWithAvatar = { ...payload, buyerAvatar };
+    const payloadWithAvatar = { ...localPayload, buyerAvatar };
 
-    if (editingIndex != null)
+    if (editingIndex != null) {
       next[editingIndex] = { ...next[editingIndex], ...payloadWithAvatar };
-    else next.unshift(payloadWithAvatar);
+
+      try {
+        await shoppingListService.updateItem(localPayload.id, {
+          name: Form.title.trim(),
+          category: Form.section,
+          quantity: parseFloat(Form.qty) || 0,
+          unit: Form.unit,
+          note: Form.comment || undefined,
+        });
+      } catch (err) {
+        console.error("Error updating item on server:", err);
+      }
+    } else {
+      next.unshift(payloadWithAvatar);
+
+      try {
+        const itemId = await shoppingListService.createItem({
+          teamId: Number(team?.id),
+          name: Form.title.trim(),
+          category: Form.section,
+          quantity: parseFloat(Form.qty) || 0,
+          unit: Form.unit,
+          note: Form.comment || undefined,
+        });
+
+        next[0].id = itemId;
+      } catch (err) {
+        console.error("Error creating item on server:", err);
+      }
+    }
 
     setItems(next);
     await persistItems(next);
@@ -183,6 +252,15 @@ export default function ShoppingListPage() {
 
   async function deleteItem() {
     if (editingIndex == null) return;
+
+    const itemToDelete = items[editingIndex];
+
+    try {
+      await shoppingListService.deleteItem(itemToDelete.id);
+    } catch (err) {
+      console.error("Error deleting item from server:", err);
+    }
+
     const next = items.filter((_, i) => i !== editingIndex);
     setItems(next);
     await persistItems(next);

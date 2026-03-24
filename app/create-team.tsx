@@ -17,13 +17,10 @@ import {
 export default function CreateTeamPage() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#7FB3FF");
   const [isSaving, setIsSaving] = useState(false);
   const [createContext, setCreateContext] = useState<
     "post_signup" | "fab" | null
   >(null);
-
-  const presetColors = ["#7FB3FF", "#FFC37F", "#B6E3B6", "#F7A6D0", "#D0C8FF"];
 
   async function saveTeam() {
     if (!name.trim()) {
@@ -86,7 +83,7 @@ export default function CreateTeamPage() {
       <View style={styles.form}>
         <Text style={styles.label}>Team photo</Text>
         <View style={styles.avatarPlaceholder}>
-          <View style={[styles.avatar, { backgroundColor: color }]} />
+          <View style={[styles.avatar, { backgroundColor: "#7FB3FF" }]} />
         </View>
 
         <Text style={styles.label}>Team name</Text>
@@ -97,22 +94,6 @@ export default function CreateTeamPage() {
           style={styles.input}
           editable={!isSaving}
         />
-
-        <Text style={[styles.label, { marginTop: 12 }]}>Icon color</Text>
-        <View style={styles.colorRow}>
-          {presetColors.map((c) => (
-            <TouchableOpacity
-              key={c}
-              style={[
-                styles.colorSwatch,
-                { backgroundColor: c },
-                c === color && styles.selectedSwatch,
-              ]}
-              onPress={() => setColor(c)}
-              disabled={isSaving}
-            />
-          ))}
-        </View>
 
         <View style={styles.actions}>
           <TouchableOpacity
@@ -164,17 +145,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     backgroundColor: "#fff",
-  },
-  colorRow: { flexDirection: "row", gap: 12, marginTop: 8 },
-  colorSwatch: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 0,
-  },
-  selectedSwatch: {
-    borderWidth: 3,
-    borderColor: "#000",
   },
   actions: { marginTop: 24, gap: 12 },
   primaryButton: {
