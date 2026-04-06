@@ -4,6 +4,12 @@ export interface TeamMember {
   id: string;
   firstName?: string;
   lastName?: string;
+  fullName?: string;
+  displayName?: string;
+  name?: string;
+  userName?: string;
+  normalizedUserName?: string;
+  email?: string;
   avatar?: string;
   role?: string;
   lastSeen?: string;
@@ -45,6 +51,11 @@ const teamService = {
 
   getTeamById: async (id: number): Promise<Team> => {
     const response = await api.get(`/api/Teams/${id}`);
+    return response.data;
+  },
+
+  getParticipants: async (teamId: number): Promise<TeamMember[]> => {
+    const response = await api.get(`/api/Teams/${teamId}/participants`);
     return response.data;
   },
 };

@@ -1,5 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useAuth } from "@/context/AuthContext";
 import api from "@/src/services/api";
 import shoppingListService from "@/src/services/shoppingListService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -7,6 +8,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
     FlatList,
+    Image,
     Platform,
     StyleSheet,
     Text,
@@ -20,6 +22,7 @@ const VIEW_TEAM_KEY = "view_team_id";
 
 export default function CategoryProductsPage() {
   const router = useRouter();
+  const { user: authUser } = useAuth();
   const params = useLocalSearchParams();
   const categoryId = Number(params.id);
   const categoryName = String(params.name ?? "Категорія");
@@ -101,7 +104,12 @@ export default function CategoryProductsPage() {
         category: categoryName,
         note: "",
       };
-      await shoppingListService.createItem(payload);
+      const createdId = await shoppingListService.createItem(payload);
+      if (createdId != null && authUser?.id != null) {
+        await shoppingListService.updateItem(createdId, {
+          assignedToUserId: authUser.id,
+        });
+      }
       setError(null);
       setSelectedProduct(null);
       router.push("/shopping-list");
@@ -173,13 +181,31 @@ export default function CategoryProductsPage() {
           renderItem={({ item }) => {
             const name =
               item.name ?? item.title ?? item.productName ?? "Продукт";
+            const imageBase64 =
+              typeof item.imageBase64 === "string" && item.imageBase64.trim()
+                ? item.imageBase64.trim()
+                : undefined;
+            const imageUri = imageBase64
+              ? imageBase64.startsWith("data:")
+                ? imageBase64
+                : `data:image/png;base64,${imageBase64}`
+              : undefined;
+
             return (
               <TouchableOpacity
                 style={styles.productTile}
                 onPress={() => openProduct(item)}
               >
                 <View style={styles.tileImageWrap}>
-                  <View style={styles.tileImage} />
+                  {imageUri ? (
+                    <Image
+                      source={{ uri: imageUri }}
+                      style={styles.tileImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.tileImage} />
+                  )}
                 </View>
                 <ThemedText style={styles.tileName} numberOfLines={2}>
                   {name}

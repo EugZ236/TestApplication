@@ -5,13 +5,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -20,9 +21,9 @@ const VIEW_TEAM_KEY = "view_team_id";
 export default function AddProductPage() {
   const router = useRouter();
   const [team, setTeam] = useState<any | null>(null);
-  const [categories, setCategories] = useState<{ id: number; name: string }[]>(
-    [],
-  );
+  const [categories, setCategories] = useState<
+    { id: number; name: string; imageBase64?: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -51,7 +52,14 @@ export default function AddProductPage() {
         const data = Array.isArray(res.data) ? res.data : [];
         const mapped = data
           .filter((c: any) => c && c.id != null && c.name)
-          .map((c: any) => ({ id: c.id, name: String(c.name) }));
+          .map((c: any) => ({
+            id: c.id,
+            name: String(c.name),
+            imageBase64:
+              typeof c.imageBase64 === "string" && c.imageBase64.trim()
+                ? c.imageBase64.trim()
+                : undefined,
+          }));
         setCategories(mapped);
         setError(null);
       } catch (e) {
@@ -113,7 +121,19 @@ export default function AddProductPage() {
                 );
               }}
             >
-              <View style={styles.categoryIcon} />
+              {category.imageBase64 ? (
+                <Image
+                  source={{
+                    uri: category.imageBase64.startsWith("data:")
+                      ? category.imageBase64
+                      : `data:image/png;base64,${category.imageBase64}`,
+                  }}
+                  style={styles.categoryIcon}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.categoryIcon} />
+              )}
               <ThemedText style={styles.categoryName}>
                 {category.name}
               </ThemedText>

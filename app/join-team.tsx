@@ -1,5 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import notificationService from "@/src/services/notificationService";
 import teamService from "@/src/services/teamService";
 import { showToast } from "@/utils/toast";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -36,6 +37,12 @@ export default function JoinTeamPage() {
     setIsLoading(true);
     try {
       const result = await teamService.joinTeam(trimmedCode);
+
+      notificationService.sendGroupNotification({
+        title: "Новий учасник",
+        body: `Користувач приєднався до команди "${result.teamName}"`,
+        teamId: result.teamId.toString(),
+      });
 
       Alert.alert("Успіх", `Ви приєдналися до команди "${result.teamName}"`, [
         { text: "Чудово", onPress: () => router.replace("/(tabs)") },

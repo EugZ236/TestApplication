@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(newToken);
     setUser(userData);
     await authService.saveToken(newToken);
-    await authService.saveUser(userData);
+    await authService.saveUser(userData, newToken);
   };
 
   // --------------------

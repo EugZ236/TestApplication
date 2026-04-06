@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import productService from "@/src/services/productService";
 import shoppingListService from "@/src/services/shoppingListService";
 import shoppingListSignalRService from "@/src/services/shoppingListSignalRService";
+import teamService, { TeamMember } from "@/src/services/teamService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -45,6 +46,7 @@ export default function TeamPage() {
   const [budgetAmount, setBudgetAmount] = useState<number>(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showMembersInSidebar, setShowMembersInSidebar] = useState(false);
+  const [participants, setParticipants] = useState<TeamMember[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -63,6 +65,48 @@ export default function TeamPage() {
             : null,
         );
         setTeam(found);
+
+        if (found?.id) {
+          try {
+            const remoteParticipants = await teamService.getParticipants(
+              found.id,
+            );
+            setParticipants(remoteParticipants);
+          } catch (e) {
+            console.error("Failed to load participants", e);
+            // fallback to old logic
+            const teamMembers = Array.isArray(found.members)
+              ? found.members
+              : [];
+            const defaultMember = auth.user
+              ? {
+                  id: auth.user.id ?? "me",
+                  firstName: auth.user.firstName ?? "Ви",
+                  lastName: auth.user.lastName ?? "",
+                  role: "owner",
+                  lastSeen: null,
+                }
+              : null;
+            const totalCount =
+              found.memberCount ??
+              Math.max(teamMembers.length, defaultMember ? 1 : 0);
+            const baseMembers =
+              teamMembers.length > 0
+                ? teamMembers
+                : defaultMember
+                  ? [defaultMember]
+                  : [];
+            const missing = Math.max(0, totalCount - baseMembers.length);
+            const placeholders = Array.from({ length: missing }, (_, i) => ({
+              id: `unknown-${i + 1}`,
+              firstName: `Учасник ${baseMembers.length + i + 1}`,
+              lastName: "",
+              role: "member",
+              lastSeen: null,
+            }));
+            setParticipants([...baseMembers, ...placeholders]);
+          }
+        }
 
         // Load budget from the same key that BudgetPage uses. If absent -> 0
         try {
@@ -197,10 +241,61 @@ export default function TeamPage() {
     };
   }, [quickText]);
 
+  const getParticipantFullName = (member: TeamMember) => {
+    const parts = [
+      member.firstName,
+      member.lastName,
+      member.fullName,
+      member.displayName,
+      member.name,
+      member.userName,
+    ]
+      .filter(Boolean)
+      .map((part) => String(part).trim())
+      .filter(Boolean);
+
+    if (parts.length > 0) {
+      return parts.join(" ");
+    }
+
+    if (member.email) {
+      return member.email.split("@")[0];
+    }
+
+    return "Учасник";
+  };
+
+  const getParticipantRoleLabel = (member: TeamMember) => {
+    const role = String(member.role ?? "").toLowerCase();
+    if (
+      role === "owner" ||
+      role === "admin" ||
+      role === "administrator" ||
+      role === "creator"
+    ) {
+      return "Адмін";
+    }
+    if (role === "member" || role === "user") {
+      return "Мембер";
+    }
+    return undefined;
+  };
+
+  const loadParticipants = useCallback(async () => {
+    if (!team?.id) return;
+    try {
+      const remoteParticipants = await teamService.getParticipants(team.id);
+      setParticipants(remoteParticipants);
+    } catch (e) {
+      console.error("Failed to load participants", e);
+    }
+  }, [team?.id]);
+
   useFocusEffect(
     React.useCallback(() => {
       loadShopping();
-    }, [loadShopping]),
+      loadParticipants();
+    }, [loadShopping, loadParticipants]),
   );
 
   // Keep shopping preview on team page synced in real time.
@@ -233,29 +328,6 @@ export default function TeamPage() {
       shoppingListSignalRService.disconnect();
     };
   }, [team?.id, auth.token, loadShopping]);
-
-  const teamMembers = Array.isArray(team?.members) ? team.members : [];
-  const defaultMember = auth.user
-    ? {
-        id: auth.user.id ?? "me",
-        firstName: auth.user.firstName ?? "Ви",
-        lastName: auth.user.lastName ?? "",
-        role: "owner",
-      }
-    : null;
-  const totalCount =
-    team?.memberCount ?? Math.max(teamMembers.length, defaultMember ? 1 : 0);
-  const baseMembers =
-    teamMembers.length > 0 ? teamMembers : defaultMember ? [defaultMember] : [];
-  const missing = Math.max(0, totalCount - baseMembers.length);
-  const placeholders = Array.from({ length: missing }, (_, i) => ({
-    id: `unknown-${i + 1}`,
-    firstName: `Учасник ${baseMembers.length + i + 1}`,
-    lastName: "",
-    role: "member",
-    lastSeen: null,
-  }));
-  const participants = [...baseMembers, ...placeholders];
 
   const createdLabel = (() => {
     const d = team?.joinedAt ? new Date(team.joinedAt) : new Date();
@@ -399,7 +471,7 @@ export default function TeamPage() {
                       (m: any) => String(m.id) === String(it.buyerId),
                     );
                     parts.push(
-                      `Купує ${member ? `${member.firstName ?? ""}` : it.buyerId === "me" ? "Ви" : "Учасник"}`,
+                      `Купує ${member ? getParticipantFullName(member) : it.buyerId === "me" ? "Ви" : "Учасник"}`,
                     );
                   }
                   if (it.comment) parts.push(it.comment);
@@ -475,27 +547,6 @@ export default function TeamPage() {
                 >{`Ліміт: ₴${limit.toLocaleString()}`}</ThemedText>
               </View>
             </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.card, { marginTop: 14 }]}
-            onPress={() => {}}
-          >
-            <View style={styles.cardHeader}>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                <View style={styles.iconBox}>
-                  <ThemedText>📦</ThemedText>
-                </View>
-                <ThemedText type="defaultSemiBold">Комора</ThemedText>
-              </View>
-              <ThemedText style={{ color: "#666" }}>›</ThemedText>
-            </View>
-
-            <ThemedText style={{ color: "#666", marginTop: 12 }}>
-              Перевірити запаси вдома
-            </ThemedText>
           </TouchableOpacity>
         </View>
 
@@ -601,12 +652,7 @@ export default function TeamPage() {
               <View style={{ marginTop: 12 }}>
                 {participants.length > 0 ? (
                   participants.map((m: any, i: number) => {
-                    const fullName =
-                      `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() ||
-                      "Учасник";
-                    const onlineText = m.lastSeen
-                      ? `в мережі: ${m.lastSeen}`
-                      : "не в мережі";
+                    const fullName = getParticipantFullName(m);
                     return (
                       <View key={String(m.id ?? i)} style={styles.memberRow}>
                         <View style={styles.memberAvatarSmall}>
@@ -631,16 +677,24 @@ export default function TeamPage() {
                           <ThemedText style={{ fontWeight: "700" }}>
                             {fullName}
                           </ThemedText>
-                          <ThemedText style={{ color: "#666", fontSize: 12 }}>
-                            {onlineText}
-                          </ThemedText>
+                          {m.lastSeen && (
+                            <ThemedText style={{ color: "#666", fontSize: 12 }}>
+                              {`в мережі: ${m.lastSeen}`}
+                            </ThemedText>
+                          )}
                         </View>
-                        {m.role === "owner" ? (
+                        {getParticipantRoleLabel(m) ? (
                           <View style={styles.youBadgeSmall}>
                             <ThemedText
-                              style={{ color: "#007AFF", fontSize: 11 }}
+                              style={{
+                                color:
+                                  getParticipantRoleLabel(m) === "Адмін"
+                                    ? "#007AFF"
+                                    : "#444",
+                                fontSize: 11,
+                              }}
                             >
-                              Адмін
+                              {getParticipantRoleLabel(m)}
                             </ThemedText>
                           </View>
                         ) : null}

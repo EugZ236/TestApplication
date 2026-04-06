@@ -3,6 +3,7 @@ import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
 import shoppingListService from "@/src/services/shoppingListService";
 import shoppingListSignalRService from "@/src/services/shoppingListSignalRService";
+import teamService, { TeamMember } from "@/src/services/teamService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -27,6 +28,7 @@ export default function ShoppingListPage() {
   const router = useRouter();
   const [team, setTeam] = useState<any | null>(null);
   const [items, setItems] = useState<any[]>([]); // initially empty per spec
+  const [participants, setParticipants] = useState<TeamMember[]>([]);
   const [query, setQuery] = useState("");
   const { user: authUser, token } = useAuth();
 
@@ -49,9 +51,33 @@ export default function ShoppingListPage() {
     firstName: `Учасник ${baseMembers.length + i + 1}`,
     lastName: "",
     role: "member",
-    lastSeen: null,
   }));
-  const participants = [...baseMembers, ...placeholders];
+  const visibleParticipants = [
+    ...participants,
+    ...baseMembers,
+    ...placeholders,
+  ];
+
+  const getParticipantFullName = (member: TeamMember) => {
+    const parts = [
+      member.firstName,
+      member.lastName,
+      member.fullName,
+      member.displayName,
+      member.name,
+      member.userName,
+      member.email,
+    ]
+      .filter(Boolean)
+      .map((part) => String(part).trim())
+      .filter(Boolean);
+
+    if (parts.length > 0) {
+      return parts.join(" ");
+    }
+
+    return "Учасник";
+  };
 
   useEffect(() => {
     (async () => {
@@ -70,9 +96,11 @@ export default function ShoppingListPage() {
         // If nothing stored — keep `items` empty (requirement)
         if (found?.id) {
           try {
-            const remote = await shoppingListService.getByTeam(
-              Number(found.id),
-            );
+            const [remote, remoteParticipants] = await Promise.all([
+              shoppingListService.getByTeam(Number(found.id)),
+              teamService.getParticipants(found.id),
+            ]);
+
             const mapped = (Array.isArray(remote) ? remote : []).map(
               (item: any) => ({
                 id: item.id,
@@ -81,9 +109,13 @@ export default function ShoppingListPage() {
                 qty: item.quantity ?? 1,
                 unit: item.unit ?? "шт",
                 note: item.note ?? "",
+                buyerId: item.assignedToUserId ?? null,
               }),
             );
             setItems(mapped);
+            setParticipants(
+              Array.isArray(remoteParticipants) ? remoteParticipants : [],
+            );
           } catch (err) {
             console.warn("Не вдалося завантажити список із сервера", err);
             const shoppingRaw = await AsyncStorage.getItem(
@@ -186,13 +218,14 @@ export default function ShoppingListPage() {
       return;
     }
     const next = [...items];
+    const buyerId = Form.buyerId || (authUser?.id ?? "me");
     const localPayload = {
-      id: editingIndex != null ? next[editingIndex].id : Date.now(),
+      id: editingIndex != null ? next[editingIndex].id : Date.now().toString(),
       title: Form.title.trim(),
       section: Form.section,
       qty: parseFloat(Form.qty) || 0,
       unit: Form.unit,
-      buyerId: Form.buyerId || null,
+      buyerId,
       price: Form.price ? parseFloat(Form.price) : null,
       comment: Form.comment || "",
     };
@@ -205,39 +238,33 @@ export default function ShoppingListPage() {
             ?.avatar ?? null);
     const payloadWithAvatar = { ...localPayload, buyerAvatar };
 
-    if (editingIndex != null) {
+    if (editingIndex != null)
       next[editingIndex] = { ...next[editingIndex], ...payloadWithAvatar };
+    else next.unshift(payloadWithAvatar);
 
+    setItems(next);
+    await persistItems(next);
+    setModalVisible(false);
+  }
+
+  async function removeItem(idx: number) {
+    const item = items[idx];
+    if (!item) return;
+
+    if (typeof item.id === "number") {
       try {
-        await shoppingListService.updateItem(localPayload.id, {
-          name: Form.title.trim(),
-          category: Form.section,
-          quantity: parseFloat(Form.qty) || 0,
-          unit: Form.unit,
-          note: Form.comment || undefined,
-        });
-      } catch (err) {
-        console.error("Error updating item on server:", err);
-      }
-    } else {
-      next.unshift(payloadWithAvatar);
-
-      try {
-        const itemId = await shoppingListService.createItem({
-          teamId: Number(team?.id),
-          name: Form.title.trim(),
-          category: Form.section,
-          quantity: parseFloat(Form.qty) || 0,
-          unit: Form.unit,
-          note: Form.comment || undefined,
-        });
-
-        next[0].id = itemId;
-      } catch (err) {
-        console.error("Error creating item on server:", err);
+        await shoppingListService.deleteItem(item.id);
+      } catch (error) {
+        console.error("Не вдалося видалити товар з сервера", error);
+        Alert.alert(
+          "Помилка",
+          "Не вдалося видалити товар з сервера. Спробуйте ще раз.",
+        );
+        return;
       }
     }
 
+    const next = items.filter((_, i) => i !== idx);
     setItems(next);
     await persistItems(next);
     setModalVisible(false);
@@ -246,25 +273,14 @@ export default function ShoppingListPage() {
   function confirmDelete() {
     Alert.alert("Видалити позицію", "Ви впевнені?", [
       { text: "Скасувати", style: "cancel" },
-      { text: "Видалити", style: "destructive", onPress: deleteItem },
+      {
+        text: "Видалити",
+        style: "destructive",
+        onPress: () => {
+          if (editingIndex != null) void removeItem(editingIndex);
+        },
+      },
     ]);
-  }
-
-  async function deleteItem() {
-    if (editingIndex == null) return;
-
-    const itemToDelete = items[editingIndex];
-
-    try {
-      await shoppingListService.deleteItem(itemToDelete.id);
-    } catch (err) {
-      console.error("Error deleting item from server:", err);
-    }
-
-    const next = items.filter((_, i) => i !== editingIndex);
-    setItems(next);
-    await persistItems(next);
-    setModalVisible(false);
   }
 
   function incQty() {
@@ -285,6 +301,67 @@ export default function ShoppingListPage() {
     v: (typeof Form)[K],
   ) {
     setForm((s) => ({ ...s, [k]: v }));
+  }
+
+  function showBuyerMenu(idx: number) {
+    const options = visibleParticipants.map((m: any) => ({
+      text: getParticipantFullName(m),
+      onPress: () => {
+        const next = [...items];
+        next[idx] = { ...next[idx], buyerId: m.id };
+        setItems(next);
+        persistItems(next);
+      },
+    }));
+    options.unshift({
+      text: "Я",
+      onPress: () => {
+        const next = [...items];
+        next[idx] = { ...next[idx], buyerId: "me" };
+        setItems(next);
+        persistItems(next);
+      },
+    });
+    options.push({
+      text: "Скасувати",
+      onPress: () => {},
+    });
+    Alert.alert("Хто купить?", undefined, options);
+  }
+
+  function showItemMenu(item: any, idx: number) {
+    Alert.alert("Опції товару", undefined, [
+      {
+        text: "Видалити зі списку",
+        style: "destructive",
+        onPress: () => {
+          void removeItem(idx);
+        },
+      },
+      {
+        text: item.checked ? "Позначити як некуплене" : "Позначити як куплене",
+        onPress: () => {
+          const next = [...items];
+          next[idx] = { ...next[idx], checked: !next[idx]?.checked };
+          setItems(next);
+          persistItems(next);
+        },
+      },
+      {
+        text: "Позначити як куплено:",
+        onPress: () => {
+          const next = [...items];
+          next[idx] = { ...next[idx], checked: true };
+          setItems(next);
+          persistItems(next);
+        },
+      },
+      {
+        text: "Змінити хто купить",
+        onPress: () => showBuyerMenu(idx),
+      },
+      { text: "Скасувати", style: "cancel" as const },
+    ]);
   }
 
   function renderEmpty() {
@@ -351,14 +428,15 @@ export default function ShoppingListPage() {
                 it.title?.toLowerCase().includes(query.trim().toLowerCase()),
               )
               .map((item, idx) => {
-                const member = participants.find(
+                const member = visibleParticipants.find(
                   (m: any) => String(m.id) === String(item.buyerId),
                 );
                 const buyerName =
-                  item.buyerId === "me"
-                    ? "Я"
+                  item.buyerId === "me" ||
+                  String(item.buyerId) === String(authUser?.id)
+                    ? getParticipantFullName(authUser ?? { firstName: "Я" })
                     : member
-                      ? `${member.firstName ?? member.lastName ?? "Учасник"}`
+                      ? getParticipantFullName(member)
                       : "Учасник";
                 return (
                   <View
@@ -378,7 +456,12 @@ export default function ShoppingListPage() {
                           Купити: {buyerName}
                         </ThemedText>
                       </View>
-                      <TouchableOpacity style={styles.badgeBtn}>
+                      <TouchableOpacity
+                        style={styles.badgeBtn}
+                        onPress={() => showItemMenu(item, idx)}
+                        accessibilityLabel="Меню товару"
+                        accessibilityRole="button"
+                      >
                         <Text style={styles.badgeText}>⋮</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
@@ -437,9 +520,11 @@ export default function ShoppingListPage() {
                         </TouchableOpacity>
                         <Text style={styles.unitText}>{item.unit ?? "шт"}</Text>
                       </View>
-                      <ThemedText style={styles.priceText}>
-                        {Number(item.price || 79.49).toFixed(2)} грн
-                      </ThemedText>
+                      {item.price != null ? (
+                        <ThemedText style={styles.priceText}>
+                          {Number(item.price).toFixed(2)} грн
+                        </ThemedText>
+                      ) : null}
                     </View>
                   </View>
                 );
@@ -578,10 +663,8 @@ export default function ShoppingListPage() {
                   style={styles.selectInput}
                   onPress={() => {
                     // show simple chooser using Alert with team members
-                    const options = participants.map((m: any) => ({
-                      text:
-                        `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() ||
-                        "Учасник",
+                    const options = visibleParticipants.map((m: any) => ({
+                      text: getParticipantFullName(m),
                       onPress: () => setFormField("buyerId", m.id),
                     }));
                     options.unshift({
