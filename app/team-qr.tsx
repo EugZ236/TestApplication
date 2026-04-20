@@ -6,11 +6,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    Image,
-    Platform,
-    StyleSheet,
-    TouchableOpacity,
-    View,
+  Image,
+  Platform,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -52,9 +52,7 @@ export default function TeamQrPage() {
         setTeam(found);
         if (found) {
           const inviteCode = String(found.inviteCode ?? "").trim();
-          setQrUri(
-            inviteCode ? buildTeamInviteQrUri(inviteCode, 360) : null,
-          );
+          setQrUri(inviteCode ? buildTeamInviteQrUri(inviteCode, 360) : null);
         }
       } catch (e) {
         console.error(e);

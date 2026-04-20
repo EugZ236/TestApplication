@@ -412,7 +412,9 @@ export default function TeamsScreen() {
             {/* QR for invite code */}
             {selectedTeam
               ? (() => {
-                  const inviteCode = String(selectedTeam.inviteCode ?? "").trim();
+                  const inviteCode = String(
+                    selectedTeam.inviteCode ?? "",
+                  ).trim();
                   if (!inviteCode) return null;
 
                   return (

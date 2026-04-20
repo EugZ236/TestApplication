@@ -61,11 +61,7 @@ export default function TeamPage() {
             return String(t.id) === String(id);
           }) || null;
         const inviteCode = String(found?.inviteCode ?? "").trim();
-        setQrLink(
-          inviteCode
-            ? buildTeamInviteQrUri(inviteCode, 150)
-            : null,
-        );
+        setQrLink(inviteCode ? buildTeamInviteQrUri(inviteCode, 150) : null);
         setTeam(found);
 
         if (found?.id) {
