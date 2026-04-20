@@ -5,6 +5,7 @@ import productService from "@/src/services/productService";
 import shoppingListService from "@/src/services/shoppingListService";
 import shoppingListSignalRService from "@/src/services/shoppingListSignalRService";
 import teamService, { TeamMember } from "@/src/services/teamService";
+import { buildTeamInviteQrUri } from "@/utils/teamInviteQr";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -59,9 +60,10 @@ export default function TeamPage() {
             if (t?.id == null || id == null) return false;
             return String(t.id) === String(id);
           }) || null;
+        const inviteCode = String(found?.inviteCode ?? "").trim();
         setQrLink(
-          found
-            ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${found.id}`
+          inviteCode
+            ? buildTeamInviteQrUri(inviteCode, 150)
             : null,
         );
         setTeam(found);

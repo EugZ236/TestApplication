@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTeamStore } from "@/src/store/useTeamStore";
+import { buildTeamInviteQrUri } from "@/utils/teamInviteQr";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -50,11 +51,9 @@ export default function TeamQrPage() {
 
         setTeam(found);
         if (found) {
-          const code = found.inviteCode ?? String(found.id ?? "");
-        //   const link = `https://rilking1.github.io/smartmeal-link/?code=${code}`;
+          const inviteCode = String(found.inviteCode ?? "").trim();
           setQrUri(
-            `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(code)}`,
-            // `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(link)}`,
+            inviteCode ? buildTeamInviteQrUri(inviteCode, 360) : null,
           );
         }
       } catch (e) {
