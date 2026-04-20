@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import productService from "@/src/services/productService";
 import shoppingListService from "@/src/services/shoppingListService";
 import shoppingListSignalRService from "@/src/services/shoppingListSignalRService";
 import teamService, { TeamMember } from "@/src/services/teamService";
@@ -9,6 +10,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -20,43 +22,42 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const TEAM_STORAGE_KEY = "teams_v1";
 const VIEW_TEAM_KEY = "view_team_id";
+const DEFAULT_PRODUCT_IMAGE = require("../assets/images/icon.png");
+
+type ShoppingListItem = {
+  id: number;
+  teamId?: number;
+  productId?: number | null;
+  name: string;
+  quantity: number;
+  unit: string;
+  category: string;
+  note?: string;
+  price?: number | null;
+  productImage?: string | null;
+  isBought?: boolean;
+  assignedToUserId?: number | string | null;
+  assignedToAvatar?: string | null;
+  buyerAvatar?: string | null;
+};
 
 export default function ShoppingListPage() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [team, setTeam] = useState<any | null>(null);
-  const [items, setItems] = useState<any[]>([]); // initially empty per spec
+  const [items, setItems] = useState<ShoppingListItem[]>([]);
   const [participants, setParticipants] = useState<TeamMember[]>([]);
+  const [assigneePickerVisible, setAssigneePickerVisible] = useState(false);
+  const [assigneePickerItemId, setAssigneePickerItemId] = useState<
+    number | null
+  >(null);
+  const [assigneePickerForForm, setAssigneePickerForForm] = useState(false);
   const [query, setQuery] = useState("");
   const { user: authUser, token } = useAuth();
-
-  const teamMembers = Array.isArray(team?.members) ? team.members : [];
-  const totalCount =
-    team?.memberCount ?? Math.max(teamMembers.length, authUser ? 1 : 0);
-  const defaultMember = authUser
-    ? {
-        id: authUser.id ?? "me",
-        firstName: authUser.firstName ?? "Ви",
-        lastName: authUser.lastName ?? "",
-        role: "owner",
-      }
-    : null;
-  const baseMembers =
-    teamMembers.length > 0 ? teamMembers : defaultMember ? [defaultMember] : [];
-  const missing = Math.max(0, totalCount - baseMembers.length);
-  const placeholders = Array.from({ length: missing }, (_, i) => ({
-    id: `unknown-${i + 1}`,
-    firstName: `Учасник ${baseMembers.length + i + 1}`,
-    lastName: "",
-    role: "member",
-  }));
-  const visibleParticipants = [
-    ...participants,
-    ...baseMembers,
-    ...placeholders,
-  ];
 
   const getParticipantFullName = (member: TeamMember) => {
     const parts = [
@@ -79,6 +80,196 @@ export default function ShoppingListPage() {
     return "Учасник";
   };
 
+  const normalizeImageUri = (image?: string | null) => {
+    if (!image) return null;
+    if (image.startsWith("data:") || image.startsWith("http")) {
+      return image;
+    }
+    return `data:image/jpeg;base64,${image}`;
+  };
+
+  const extractProductImage = (item: any): string | null => {
+    const direct =
+      item?.productPhoto ??
+      item?.productImage ??
+      item?.image ??
+      item?.imageUrl ??
+      item?.photo ??
+      item?.photoUrl ??
+      item?.picture ??
+      item?.pictureUrl ??
+      item?.thumbnail ??
+      item?.thumbnailUrl ??
+      item?.base64Image;
+
+    const nested =
+      item?.product?.photo ??
+      item?.product?.image ??
+      item?.product?.imageUrl ??
+      item?.product?.photoUrl ??
+      item?.product?.productPhoto;
+
+    return (direct ?? nested ?? null) as string | null;
+  };
+
+  const resetForm = () => {
+    setForm({
+      name: "",
+      category: categories[0],
+      quantity: "1",
+      unit: units[0],
+      assignedToUserId: "",
+      price: "",
+      note: "",
+    });
+    setEditingId(null);
+  };
+
+  const enrichWithProductImages = React.useCallback(
+    async (sourceItems: ShoppingListItem[]) => {
+      const idsToLoad = Array.from(
+        new Set(
+          sourceItems
+            .filter((item) => item.productId && !item.productImage)
+            .map((item) => Number(item.productId)),
+        ),
+      );
+
+      if (idsToLoad.length === 0) {
+        return sourceItems;
+      }
+
+      const productImagePairs = await Promise.all(
+        idsToLoad.map(async (id) => {
+          try {
+            const product = await productService.getProductById(id);
+            return [id, product?.imageBase64 ?? null] as const;
+          } catch {
+            return [id, null] as const;
+          }
+        }),
+      );
+
+      const imageMap = new Map<number, string | null>(productImagePairs);
+
+      return sourceItems.map((item) => {
+        if (!item.productId || item.productImage) {
+          return item;
+        }
+        return {
+          ...item,
+          productImage: imageMap.get(Number(item.productId)) ?? null,
+        };
+      });
+    },
+    [],
+  );
+
+  const loadData = React.useCallback(
+    async (teamId: number) => {
+      const [remoteItems, remoteParticipants] = await Promise.all([
+        shoppingListService.getByTeam(teamId),
+        teamService.getParticipants(teamId),
+      ]);
+
+      const mappedItems: ShoppingListItem[] = (
+        Array.isArray(remoteItems) ? remoteItems : []
+      ).map((item: any) => ({
+        id: Number(item.id),
+        teamId,
+        productId: item.productId ?? item.globalProductId ?? null,
+        name: item.name ?? item.customName ?? item.productName ?? "Продукт",
+        quantity: Number(item.quantity ?? 1),
+        unit: item.unit ?? "шт",
+        category: item.category ?? "",
+        note: item.note ?? "",
+        price: item.price ?? item.pricePerUnit ?? null,
+        productImage: extractProductImage(item),
+        isBought: Boolean(item.isBought),
+        assignedToUserId: item.assignedToUserId ?? null,
+        assignedToAvatar: item.assignedToAvatar ?? item.buyerAvatar ?? null,
+        buyerAvatar: item.buyerAvatar ?? null,
+      }));
+
+      const itemsWithImages = await enrichWithProductImages(mappedItems);
+      setItems(itemsWithImages);
+      setParticipants(
+        Array.isArray(remoteParticipants) ? remoteParticipants : [],
+      );
+    },
+    [enrichWithProductImages],
+  );
+
+  const buildUpdatePayload = (
+    currentItem: ShoppingListItem,
+    patch: Partial<ShoppingListItem> = {},
+  ) => {
+    const merged = { ...currentItem, ...patch };
+    return {
+      teamId: Number(team?.id),
+      productId: merged.productId ?? null,
+      name: merged.name ?? "Продукт",
+      quantity: Number(merged.quantity ?? 1),
+      unit: merged.unit ?? "шт",
+      category: merged.category ?? "",
+      note: merged.note ?? null,
+      isBought: Boolean(merged.isBought),
+      assignedToUserId: merged.assignedToUserId ?? null,
+    };
+  };
+
+  const updateItemOnServer = async (
+    itemId: number,
+    patch: Partial<ShoppingListItem>,
+  ) => {
+    const current = items.find((item) => item.id === itemId);
+    if (!current || !team?.id) {
+      return;
+    }
+
+    await shoppingListService.updateItem(
+      itemId,
+      buildUpdatePayload(current, patch),
+    );
+    await loadData(Number(team.id));
+  };
+
+  const updateAssignee = async (
+    itemId: number,
+    userId: number | string | null,
+  ) => {
+    const current = items.find((item) => item.id === itemId);
+    if (!current || !team?.id) {
+      return;
+    }
+
+    try {
+      await shoppingListService.updateItem(
+        itemId,
+        buildUpdatePayload(current, { assignedToUserId: userId }),
+      );
+      await loadData(Number(team.id));
+    } catch (error) {
+      console.error("Не вдалося оновити відповідального", error);
+      Alert.alert("Помилка", "Не вдалося змінити відповідального");
+    }
+  };
+
+  const handleEditItem = (item: ShoppingListItem) => {
+    setEditingId(item.id);
+    setForm({
+      name: item.name ?? "",
+      category: item.category || categories[0],
+      quantity: String(item.quantity ?? 1),
+      unit: item.unit || units[0],
+      assignedToUserId:
+        item.assignedToUserId != null ? String(item.assignedToUserId) : "",
+      price: "",
+      note: item.note ?? "",
+    });
+    setModalVisible(true);
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -91,53 +282,20 @@ export default function ShoppingListPage() {
             return String(t.id) === String(id);
           }) || null;
         setTeam(found);
-
-        // Attempt to load persisted shopping list for the team (key: shopping_<teamId>)
-        // If nothing stored — keep `items` empty (requirement)
         if (found?.id) {
           try {
-            const [remote, remoteParticipants] = await Promise.all([
-              shoppingListService.getByTeam(Number(found.id)),
-              teamService.getParticipants(found.id),
-            ]);
-
-            const mapped = (Array.isArray(remote) ? remote : []).map(
-              (item: any) => ({
-                id: item.id,
-                title: item.name ?? "Продукт",
-                section: item.category ?? "",
-                qty: item.quantity ?? 1,
-                unit: item.unit ?? "шт",
-                note: item.note ?? "",
-                buyerId: item.assignedToUserId ?? null,
-              }),
-            );
-            setItems(mapped);
-            setParticipants(
-              Array.isArray(remoteParticipants) ? remoteParticipants : [],
-            );
+            await loadData(Number(found.id));
           } catch (err) {
             console.warn("Не вдалося завантажити список із сервера", err);
-            const shoppingRaw = await AsyncStorage.getItem(
-              `shopping_${found.id}`,
-            );
-            if (shoppingRaw) {
-              try {
-                const parsed = JSON.parse(shoppingRaw);
-                setItems(Array.isArray(parsed) ? parsed : []);
-              } catch {
-                setItems([]);
-              }
-            } else {
-              setItems([]);
-            }
+            setItems([]);
+            setParticipants([]);
           }
         }
       } catch (e) {
         console.error(e);
       }
     })();
-  }, []);
+  }, [loadData]);
 
   // SignalR real-time updates
   useEffect(() => {
@@ -147,20 +305,48 @@ export default function ShoppingListPage() {
       }
 
       try {
-        shoppingListSignalRService.onItemAdded((newItem) => {
-          setItems((prev) => {
-            const exists = prev.some((i) => i.id === newItem.id);
-            if (exists) return prev;
-            return [...prev, newItem];
-          });
+        shoppingListSignalRService.onItemAdded((newItem: any) => {
+          // SignalR payload can be partial for catalog items; reload authoritative data.
+          void loadData(Number(team.id));
         });
 
-        shoppingListSignalRService.onItemUpdated((updatedItem) => {
+        shoppingListSignalRService.onItemUpdated((updatedItem: any) => {
           setItems((prev) =>
             prev.map((item) =>
-              item.id === updatedItem.id ? updatedItem : item,
+              item.id === Number(updatedItem.id)
+                ? {
+                    ...item,
+                    productId:
+                      updatedItem.productId ??
+                      updatedItem.globalProductId ??
+                      item.productId,
+                    name: updatedItem.name ?? item.name,
+                    quantity: Number(updatedItem.quantity ?? item.quantity),
+                    unit: updatedItem.unit ?? item.unit,
+                    category: updatedItem.category ?? item.category,
+                    note: updatedItem.note ?? item.note,
+                    price:
+                      updatedItem.price ??
+                      updatedItem.pricePerUnit ??
+                      item.price ??
+                      null,
+                    productImage:
+                      extractProductImage(updatedItem) ?? item.productImage,
+                    isBought: Boolean(
+                      updatedItem.isBought ?? item.isBought ?? false,
+                    ),
+                    assignedToUserId:
+                      updatedItem.assignedToUserId ?? item.assignedToUserId,
+                    assignedToAvatar:
+                      updatedItem.assignedToAvatar ??
+                      updatedItem.buyerAvatar ??
+                      item.assignedToAvatar,
+                    buyerAvatar: updatedItem.buyerAvatar ?? item.buyerAvatar,
+                  }
+                : item,
             ),
           );
+          void loadData(Number(team.id));
         });
 
         shoppingListSignalRService.onItemRemoved((itemId) => {
@@ -180,7 +366,7 @@ export default function ShoppingListPage() {
 
   // --- modal + form state & persistence handlers
   const [modalVisible, setModalVisible] = React.useState(false);
-  const [editingIndex] = React.useState<number | null>(null);
+  const [editingId, setEditingId] = React.useState<number | null>(null);
   const categories = [
     "Овочі та фрукти",
     "Молочні продукти",
@@ -190,61 +376,67 @@ export default function ShoppingListPage() {
   ];
   const units = ["шт", "кг", "мл"];
   const [Form, setForm] = React.useState({
-    title: "",
-    section: categories[0],
-    qty: "1",
+    name: "",
+    category: categories[0],
+    quantity: "1",
     unit: units[0],
-    buyerId: "",
+    assignedToUserId: "",
     price: "",
-    comment: "",
+    note: "",
   });
 
-  const persistItems = async (nextItems: any[]) => {
-    try {
-      const key = team?.id ? `shopping_${team.id}` : "shopping_default";
-      await AsyncStorage.setItem(key, JSON.stringify(nextItems));
-    } catch (e) {
-      console.error("persistItems:", e);
-    }
-  };
-
-  function openCreate() {
+  function openCatalog() {
     router.push("/add-product");
   }
 
+  function openCreate() {
+    resetForm();
+    setModalVisible(true);
+  }
+
   async function saveItem() {
-    if (!Form.title.trim()) {
+    if (!Form.name.trim()) {
       Alert.alert("Помилка", "Вкажіть назву товару");
       return;
     }
-    const next = [...items];
-    const buyerId = Form.buyerId || (authUser?.id ?? "me");
-    const localPayload = {
-      id: editingIndex != null ? next[editingIndex].id : Date.now().toString(),
-      title: Form.title.trim(),
-      section: Form.section,
-      qty: parseFloat(Form.qty) || 0,
+    if (!team?.id) {
+      Alert.alert("Помилка", "Не вдалося визначити команду");
+      return;
+    }
+
+    const selectedAssignee =
+      Form.assignedToUserId ||
+      (authUser?.id != null ? String(authUser.id) : null);
+    const payload = {
+      teamId: Number(team.id),
+      name: Form.name.trim(),
+      quantity: Number(Form.quantity) || 1,
       unit: Form.unit,
-      buyerId,
-      price: Form.price ? parseFloat(Form.price) : null,
-      comment: Form.comment || "",
+      category: Form.category,
+      note: Form.note?.trim() || null,
+      assignedToUserId: selectedAssignee ?? null,
     };
 
-    // attach buyer avatar when possible
-    const buyerAvatar =
-      Form.buyerId === "me"
-        ? (authUser?.avatar ?? null)
-        : (participants.find((m: any) => String(m.id) === String(Form.buyerId))
-            ?.avatar ?? null);
-    const payloadWithAvatar = { ...localPayload, buyerAvatar };
+    try {
+      if (editingId != null) {
+        await shoppingListService.updateItem(editingId, payload);
+      } else {
+        const createdId = await shoppingListService.createItem(payload);
+        if (payload.assignedToUserId != null) {
+          await shoppingListService.updateItem(createdId, {
+            ...payload,
+            isBought: false,
+          });
+        }
+      }
 
-    if (editingIndex != null)
-      next[editingIndex] = { ...next[editingIndex], ...payloadWithAvatar };
-    else next.unshift(payloadWithAvatar);
-
-    setItems(next);
-    await persistItems(next);
-    setModalVisible(false);
+      await loadData(Number(team.id));
+      setModalVisible(false);
+      resetForm();
+    } catch (error) {
+      console.error("Не вдалося зберегти товар", error);
+      Alert.alert("Помилка", "Не вдалося зберегти товар");
+    }
   }
 
   async function removeItem(idx: number) {
@@ -264,9 +456,9 @@ export default function ShoppingListPage() {
       }
     }
 
-    const next = items.filter((_, i) => i !== idx);
-    setItems(next);
-    await persistItems(next);
+    if (team?.id) {
+      await loadData(Number(team.id));
+    }
     setModalVisible(false);
   }
 
@@ -277,7 +469,12 @@ export default function ShoppingListPage() {
         text: "Видалити",
         style: "destructive",
         onPress: () => {
-          if (editingIndex != null) void removeItem(editingIndex);
+          if (editingId != null) {
+            const indexToRemove = items.findIndex((i) => i.id === editingId);
+            if (indexToRemove >= 0) {
+              void removeItem(indexToRemove);
+            }
+          }
         },
       },
     ]);
@@ -286,13 +483,13 @@ export default function ShoppingListPage() {
   function incQty() {
     setForm((f) => ({
       ...f,
-      qty: String(Math.max(0, parseFloat(f.qty || "0") + 0.5)),
+      quantity: String(Math.max(0, parseFloat(f.quantity || "0") + 0.5)),
     }));
   }
   function decQty() {
     setForm((f) => ({
       ...f,
-      qty: String(Math.max(0, parseFloat(f.qty || "0") - 0.5)),
+      quantity: String(Math.max(0, parseFloat(f.quantity || "0") - 0.5)),
     }));
   }
 
@@ -304,64 +501,18 @@ export default function ShoppingListPage() {
   }
 
   function showBuyerMenu(idx: number) {
-    const options = visibleParticipants.map((m: any) => ({
-      text: getParticipantFullName(m),
-      onPress: () => {
-        const next = [...items];
-        next[idx] = { ...next[idx], buyerId: m.id };
-        setItems(next);
-        persistItems(next);
-      },
-    }));
-    options.unshift({
-      text: "Я",
-      onPress: () => {
-        const next = [...items];
-        next[idx] = { ...next[idx], buyerId: "me" };
-        setItems(next);
-        persistItems(next);
-      },
-    });
-    options.push({
-      text: "Скасувати",
-      onPress: () => {},
-    });
-    Alert.alert("Хто купить?", undefined, options);
+    const item = items[idx];
+    if (!item) return;
+
+    setAssigneePickerForForm(false);
+    setAssigneePickerItemId(item.id);
+    setAssigneePickerVisible(true);
   }
 
-  function showItemMenu(item: any, idx: number) {
-    Alert.alert("Опції товару", undefined, [
-      {
-        text: "Видалити зі списку",
-        style: "destructive",
-        onPress: () => {
-          void removeItem(idx);
-        },
-      },
-      {
-        text: item.checked ? "Позначити як некуплене" : "Позначити як куплене",
-        onPress: () => {
-          const next = [...items];
-          next[idx] = { ...next[idx], checked: !next[idx]?.checked };
-          setItems(next);
-          persistItems(next);
-        },
-      },
-      {
-        text: "Позначити як куплено:",
-        onPress: () => {
-          const next = [...items];
-          next[idx] = { ...next[idx], checked: true };
-          setItems(next);
-          persistItems(next);
-        },
-      },
-      {
-        text: "Змінити хто купить",
-        onPress: () => showBuyerMenu(idx),
-      },
-      { text: "Скасувати", style: "cancel" as const },
-    ]);
+  function openAssigneePickerForForm() {
+    setAssigneePickerForForm(true);
+    setAssigneePickerItemId(null);
+    setAssigneePickerVisible(true);
   }
 
   function renderEmpty() {
@@ -418,71 +569,118 @@ export default function ShoppingListPage() {
 
       <ScrollView
         style={styles.listWrap}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: 140 + insets.bottom },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         {items.length === 0
           ? renderEmpty()
           : items
               .filter((it) =>
-                it.title?.toLowerCase().includes(query.trim().toLowerCase()),
+                it.name?.toLowerCase().includes(query.trim().toLowerCase()),
               )
               .map((item, idx) => {
-                const member = visibleParticipants.find(
-                  (m: any) => String(m.id) === String(item.buyerId),
+                const hasAssignee =
+                  item.assignedToUserId != null &&
+                  String(item.assignedToUserId).trim().length > 0;
+                const member = participants.find(
+                  (m: any) => String(m.id) === String(item.assignedToUserId),
                 );
-                const buyerName =
-                  item.buyerId === "me" ||
-                  String(item.buyerId) === String(authUser?.id)
-                    ? getParticipantFullName(authUser ?? { firstName: "Я" })
-                    : member
-                      ? getParticipantFullName(member)
+                const isAssignedToMe =
+                  hasAssignee &&
+                  authUser?.id != null &&
+                  String(item.assignedToUserId) === String(authUser.id);
+                const buyerName = !hasAssignee
+                  ? "Не призначено"
+                  : member?.id != null
+                    ? getParticipantFullName(member)
+                    : isAssignedToMe
+                      ? getParticipantFullName(authUser as TeamMember)
                       : "Учасник";
+                const assigneeAvatar = normalizeImageUri(
+                  member?.avatar ?? item.assignedToAvatar ?? item.buyerAvatar,
+                );
+                const assigneeInitial = (buyerName || "У")
+                  .charAt(0)
+                  .toUpperCase();
+                const productImageSource = normalizeImageUri(item.productImage);
                 return (
-                  <View
+                  <TouchableOpacity
                     key={String(item.id ?? idx)}
                     style={styles.productCardNew}
+                    onPress={() => handleEditItem(item)}
+                    activeOpacity={0.95}
                   >
                     <View style={styles.productTopRow}>
-                      <View style={styles.productImage} />
+                      <Image
+                        source={
+                          productImageSource
+                            ? { uri: productImageSource }
+                            : DEFAULT_PRODUCT_IMAGE
+                        }
+                        style={styles.productImage}
+                        resizeMode="cover"
+                      />
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <ThemedText
                           style={styles.productTitleNew}
                           numberOfLines={2}
                         >
-                          {item.title}
+                          {item.name}
                         </ThemedText>
                         <ThemedText style={styles.productSubNew}>
                           Купити: {buyerName}
                         </ThemedText>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.badgeBtn}
-                        onPress={() => showItemMenu(item, idx)}
-                        accessibilityLabel="Меню товару"
-                        accessibilityRole="button"
-                      >
-                        <Text style={styles.badgeText}>⋮</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.checkboxNew,
-                          item.checked ? styles.checked : null,
-                        ]}
-                        onPress={() => {
-                          const next = [...items];
-                          next[idx] = {
-                            ...next[idx],
-                            checked: !next[idx]?.checked,
-                          };
-                          setItems(next);
-                          persistItems(next);
-                        }}
-                      >
-                        {item.checked ? (
-                          <Text style={{ color: "#fff" }}>✓</Text>
+                        {item.note?.trim() ? (
+                          <View style={styles.commentRow}>
+                            <Text style={styles.commentIcon}>💬</Text>
+                            <ThemedText
+                              style={styles.productComment}
+                              numberOfLines={2}
+                            >
+                              {item.note}
+                            </ThemedText>
+                          </View>
                         ) : null}
-                      </TouchableOpacity>
+                      </View>
+                      <View style={styles.rightControls}>
+                        <View style={styles.topActionsRow}>
+                          <TouchableOpacity
+                            style={styles.assigneeCircle}
+                            onPress={() => showBuyerMenu(idx)}
+                            accessibilityLabel="Відповідальний за покупку"
+                            accessibilityRole="button"
+                          >
+                            {assigneeAvatar ? (
+                              <Image
+                                source={{ uri: assigneeAvatar }}
+                                style={styles.assigneeAvatar}
+                              />
+                            ) : (
+                              <Text style={styles.assigneeInitial}>
+                                {assigneeInitial}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                        <TouchableOpacity
+                          style={[
+                            styles.checkboxNew,
+                            item.isBought ? styles.checked : null,
+                          ]}
+                          onPress={() => {
+                            void updateItemOnServer(item.id, {
+                              isBought: !item.isBought,
+                            });
+                          }}
+                        >
+                          {item.isBought ? (
+                            <Text style={{ color: "#fff" }}>✓</Text>
+                          ) : null}
+                        </TouchableOpacity>
+                      </View>
                     </View>
 
                     <View style={styles.productBottomRow}>
@@ -490,30 +688,22 @@ export default function ShoppingListPage() {
                         <TouchableOpacity
                           style={styles.qtyBtnNew}
                           onPress={() => {
-                            const next = [...items];
-                            const curr = Number(item.qty || 1);
-                            next[idx] = {
-                              ...next[idx],
-                              qty: Math.max(0, curr - 1),
-                            };
-                            setItems(next);
-                            persistItems(next);
+                            const curr = Number(item.quantity || 1);
+                            void updateItemOnServer(item.id, {
+                              quantity: Math.max(0, curr - 1),
+                            });
                           }}
                         >
                           <Text style={styles.qtyBtnText}>−</Text>
                         </TouchableOpacity>
-                        <Text style={styles.qtyText}>{item.qty ?? 1}</Text>
+                        <Text style={styles.qtyText}>{item.quantity ?? 1}</Text>
                         <TouchableOpacity
                           style={styles.qtyBtnNew}
                           onPress={() => {
-                            const next = [...items];
-                            const curr = Number(item.qty || 1);
-                            next[idx] = {
-                              ...next[idx],
-                              qty: curr + 1,
-                            };
-                            setItems(next);
-                            persistItems(next);
+                            const curr = Number(item.quantity || 1);
+                            void updateItemOnServer(item.id, {
+                              quantity: curr + 1,
+                            });
                           }}
                         >
                           <Text style={styles.qtyBtnText}>+</Text>
@@ -526,195 +716,304 @@ export default function ShoppingListPage() {
                         </ThemedText>
                       ) : null}
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
       </ScrollView>
 
-      <View style={styles.bottomRow}>
-        <TouchableOpacity style={styles.openListBtn} onPress={openCreate}>
-          <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-            + Додати продукт
-          </ThemedText>
-        </TouchableOpacity>
+      <View
+        style={[
+          styles.bottomRow,
+          { paddingBottom: Math.max(20, insets.bottom + 10) },
+        ]}
+      >
+        <View style={styles.bottomButtonsRow}>
+          <TouchableOpacity style={styles.catalogBtn} onPress={openCatalog}>
+            <ThemedText style={{ color: "#2F80ED", fontWeight: "700" }}>
+              Каталог
+            </ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.openListBtn} onPress={openCreate}>
+            <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
+              + Додати свій продукт
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Edit / create bottom sheet */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalVisible(false)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1, justifyContent: "flex-end" }}
         >
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <ThemedText type="title">
-                {Form.title || "Нова позиція"}
-              </ThemedText>
-              <Pressable onPress={confirmDelete} style={styles.trashBtn}>
-                <Text style={{ color: "#FF6B6B", fontSize: 18 }}>🗑️</Text>
-              </Pressable>
-            </View>
-
-            {/* title input (was missing) */}
-            <TextInput
-              placeholder="Назва товару"
-              value={Form.title}
-              onChangeText={(v) => setFormField("title", v)}
-              style={styles.titleInput}
-              autoFocus={true}
-              returnKeyType="next"
-            />
-
-            {/* categories toggle */}
-            <View
-              style={{
-                marginTop: 12,
-                flexDirection: "row",
-                gap: 8,
-                flexWrap: "wrap",
-              }}
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setModalVisible(false)}
+          >
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={styles.sheet}
             >
-              {categories.map((c) => (
-                <TouchableOpacity
-                  key={c}
-                  onPress={() => setFormField("section", c)}
-                  style={[
-                    {
-                      paddingHorizontal: 12,
-                      paddingVertical: 8,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                    },
-                    Form.section === c
-                      ? { backgroundColor: "#F1F6FF", borderColor: "#2F80ED" }
-                      : { backgroundColor: "#fff", borderColor: "#EEF2F7" },
-                  ]}
-                >
-                  <ThemedText
-                    style={
-                      Form.section === c
-                        ? { color: "#2F80ED", fontWeight: "700" }
-                        : { color: "#666" }
-                    }
+              <View style={styles.sheetHandle} />
+              <View style={styles.sheetHeader}>
+                <ThemedText type="title">
+                  {Form.name || "Нова позиція"}
+                </ThemedText>
+                <Pressable onPress={confirmDelete} style={styles.trashBtn}>
+                  <Text style={{ color: "#FF6B6B", fontSize: 18 }}>🗑️</Text>
+                </Pressable>
+              </View>
+
+              {/* title input (was missing) */}
+              <TextInput
+                placeholder="Назва товару"
+                value={Form.name}
+                onChangeText={(v) => setFormField("name", v)}
+                style={styles.titleInput}
+                autoFocus={true}
+                returnKeyType="next"
+              />
+
+              {/* categories toggle */}
+              <View
+                style={{
+                  marginTop: 12,
+                  flexDirection: "row",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                {categories.map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    onPress={() => setFormField("category", c)}
+                    style={[
+                      {
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                      },
+                      Form.category === c
+                        ? { backgroundColor: "#F1F6FF", borderColor: "#2F80ED" }
+                        : { backgroundColor: "#fff", borderColor: "#EEF2F7" },
+                    ]}
                   >
-                    {c}
-                  </ThemedText>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.formRow}>
-              <ThemedText style={styles.formLabel}>КІЛЬКІСТЬ</ThemedText>
-              <View style={styles.qtyRow}>
-                <TouchableOpacity style={styles.qtyBtn} onPress={decQty}>
-                  <ThemedText>-</ThemedText>
-                </TouchableOpacity>
-                <TextInput
-                  style={styles.qtyInput}
-                  value={Form.qty}
-                  onChangeText={(v) => setFormField("qty", v)}
-                  keyboardType="numeric"
-                />
-                <TouchableOpacity style={styles.qtyBtn} onPress={incQty}>
-                  <ThemedText>+</ThemedText>
-                </TouchableOpacity>
-
-                {/* unit toggle */}
-                <View style={{ flexDirection: "row", marginLeft: 8, gap: 8 }}>
-                  {units.map((u) => (
-                    <TouchableOpacity
-                      key={u}
-                      onPress={() => setFormField("unit", u)}
-                      style={[
-                        {
-                          paddingHorizontal: 10,
-                          paddingVertical: 8,
-                          borderRadius: 10,
-                        },
-                        Form.unit === u
-                          ? {
-                              backgroundColor: "#F1F6FF",
-                              borderWidth: 1,
-                              borderColor: "#E6F0FF",
-                            }
-                          : { backgroundColor: "#F6F8FB" },
-                      ]}
+                    <ThemedText
+                      style={
+                        Form.category === c
+                          ? { color: "#2F80ED", fontWeight: "700" }
+                          : { color: "#666" }
+                      }
                     >
-                      <ThemedText
-                        style={
+                      {c}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.formRow}>
+                <ThemedText style={styles.formLabel}>КІЛЬКІСТЬ</ThemedText>
+                <View style={styles.qtyRow}>
+                  <TouchableOpacity style={styles.qtyBtn} onPress={decQty}>
+                    <ThemedText>-</ThemedText>
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.qtyInput}
+                    value={Form.quantity}
+                    onChangeText={(v) => setFormField("quantity", v)}
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity style={styles.qtyBtn} onPress={incQty}>
+                    <ThemedText>+</ThemedText>
+                  </TouchableOpacity>
+
+                  {/* unit toggle */}
+                  <View style={{ flexDirection: "row", marginLeft: 8, gap: 8 }}>
+                    {units.map((u) => (
+                      <TouchableOpacity
+                        key={u}
+                        onPress={() => setFormField("unit", u)}
+                        style={[
+                          {
+                            paddingHorizontal: 10,
+                            paddingVertical: 8,
+                            borderRadius: 10,
+                          },
                           Form.unit === u
-                            ? { color: "#2F80ED", fontWeight: "700" }
-                            : { color: "#666" }
-                        }
+                            ? {
+                                backgroundColor: "#F1F6FF",
+                                borderWidth: 1,
+                                borderColor: "#E6F0FF",
+                              }
+                            : { backgroundColor: "#F6F8FB" },
+                        ]}
                       >
-                        {u}
-                      </ThemedText>
-                    </TouchableOpacity>
-                  ))}
+                        <ThemedText
+                          style={
+                            Form.unit === u
+                              ? { color: "#2F80ED", fontWeight: "700" }
+                              : { color: "#666" }
+                          }
+                        >
+                          {u}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
               </View>
-            </View>
 
-            <View style={styles.formRowTwo}>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.formLabel}>ХТО КУПИТЬ</ThemedText>
-                <TouchableOpacity
-                  style={styles.selectInput}
-                  onPress={() => {
-                    // show simple chooser using Alert with team members
-                    const options = visibleParticipants.map((m: any) => ({
-                      text: getParticipantFullName(m),
-                      onPress: () => setFormField("buyerId", m.id),
-                    }));
-                    options.unshift({
-                      text: `Я (${team?.ownerName ?? "Ви"})`,
-                      onPress: () => setFormField("buyerId", "me"),
-                    });
-                    options.push({
-                      text: "Скасувати",
-                      onPress: () => {},
-                    });
-                    Alert.alert("Хто купить?", undefined, options);
-                  }}
-                >
-                  <ThemedText>
-                    {Form.buyerId ? String(Form.buyerId) : `Я`}
+              <View style={styles.formRowTwo}>
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.formLabel}>ХТО КУПИТЬ</ThemedText>
+                  <TouchableOpacity
+                    style={styles.selectInput}
+                    onPress={openAssigneePickerForForm}
+                  >
+                    <ThemedText>
+                      {Form.assignedToUserId
+                        ? authUser?.id != null &&
+                          String(Form.assignedToUserId) === String(authUser.id)
+                          ? "Я"
+                          : getParticipantFullName(
+                              participants.find(
+                                (p) =>
+                                  String(p.id) ===
+                                  String(Form.assignedToUserId),
+                              ) ?? ({ firstName: "Учасник" } as TeamMember),
+                            )
+                        : "Не призначено"}
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ width: 12 }} />
+
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.formLabel}>
+                    ЦІНА (ОРІЄНТ.)
                   </ThemedText>
-                </TouchableOpacity>
+                  <TextInput
+                    style={styles.selectInput}
+                    value={Form.price}
+                    onChangeText={(v) => setFormField("price", v)}
+                    keyboardType="numeric"
+                  />
+                </View>
               </View>
 
-              <View style={{ width: 12 }} />
+              <ThemedText style={[styles.formLabel, { marginTop: 12 }]}>
+                КОМЕНТАР
+              </ThemedText>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="Напр: Тільки свіжу, не миту..."
+                value={Form.note}
+                onChangeText={(v) => setFormField("note", v)}
+                multiline
+              />
 
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.formLabel}>ЦІНА (ОРІЄНТ.)</ThemedText>
-                <TextInput
-                  style={styles.selectInput}
-                  value={Form.price}
-                  onChangeText={(v) => setFormField("price", v)}
-                  keyboardType="numeric"
-                />
-              </View>
+              <TouchableOpacity style={styles.saveBtn} onPress={saveItem}>
+                <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
+                  {editingId == null ? "Додати продукт" : "Зберегти зміни"}
+                </ThemedText>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={assigneePickerVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setAssigneePickerVisible(false)}
+      >
+        <Pressable
+          style={styles.assigneeModalOverlay}
+          onPress={() => setAssigneePickerVisible(false)}
+        >
+          <Pressable
+            style={styles.assigneeModalCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.assigneeModalHeader}>
+              <ThemedText type="title">Хто купить?</ThemedText>
+              <TouchableOpacity
+                style={styles.assigneeCloseBtn}
+                onPress={() => setAssigneePickerVisible(false)}
+              >
+                <Text style={styles.assigneeCloseBtnText}>✕</Text>
+              </TouchableOpacity>
             </View>
 
-            <ThemedText style={[styles.formLabel, { marginTop: 12 }]}>
-              КОМЕНТАР
-            </ThemedText>
-            <TextInput
-              style={styles.commentInput}
-              placeholder="Напр: Тільки свіжу, не миту..."
-              value={Form.comment}
-              onChangeText={(v) => setFormField("comment", v)}
-              multiline
-            />
+            <ScrollView
+              style={styles.assigneeList}
+              contentContainerStyle={styles.assigneeListContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {participants.map((member: TeamMember) => {
+                const memberName = getParticipantFullName(member);
+                const avatarUri = normalizeImageUri(member.avatar);
+                const initial = (memberName || "У").charAt(0).toUpperCase();
+                const isSelected = assigneePickerForForm
+                  ? String(Form.assignedToUserId || "") ===
+                    String(member.id || "")
+                  : String(
+                      items.find((i) => i.id === assigneePickerItemId)
+                        ?.assignedToUserId || "",
+                    ) === String(member.id || "");
 
-            <TouchableOpacity style={styles.saveBtn} onPress={saveItem}>
-              <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-                {editingIndex == null ? "Додати продукт" : "Зберегти зміни"}
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
+                return (
+                  <TouchableOpacity
+                    key={String(member.id)}
+                    style={[
+                      styles.assigneeOption,
+                      isSelected ? styles.assigneeOptionSelected : null,
+                    ]}
+                    onPress={() => {
+                      if (assigneePickerForForm) {
+                        setFormField("assignedToUserId", String(member.id));
+                      } else if (assigneePickerItemId != null) {
+                        void updateAssignee(
+                          assigneePickerItemId,
+                          member.id ?? null,
+                        );
+                      }
+                      setAssigneePickerVisible(false);
+                    }}
+                  >
+                    <View style={styles.assigneeOptionAvatarWrap}>
+                      {avatarUri ? (
+                        <Image
+                          source={{ uri: avatarUri }}
+                          style={styles.assigneeOptionAvatar}
+                        />
+                      ) : (
+                        <Text style={styles.assigneeOptionInitial}>
+                          {initial}
+                        </Text>
+                      )}
+                    </View>
+                    <ThemedText style={styles.assigneeOptionName}>
+                      {memberName}
+                    </ThemedText>
+                    {isSelected ? (
+                      <Text style={styles.assigneeOptionCheck}>✓</Text>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
       </Modal>
     </ThemedView>
   );
@@ -789,7 +1088,7 @@ const styles = StyleSheet.create({
   },
   productTopRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   productImage: {
     width: 56,
@@ -799,14 +1098,34 @@ const styles = StyleSheet.create({
   },
   productTitleNew: { fontWeight: "700", fontSize: 15, marginBottom: 4 },
   productSubNew: { fontSize: 12, color: "#999" },
+  commentRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FFF3E8",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  commentIcon: {
+    fontSize: 12,
+    marginRight: 6,
+    marginTop: 1,
+  },
+  productComment: {
+    fontSize: 12,
+    color: "#C2410C",
+    flex: 1,
+  },
   checkboxNew: {
-    width: 24,
-    height: 24,
+    width: 30,
+    height: 30,
     borderWidth: 1,
     borderColor: "#DDD",
-    borderRadius: 6,
+    borderRadius: 9,
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 8,
   },
   checked: {
     backgroundColor: "#2F80ED",
@@ -844,20 +1163,32 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
-  badgeBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: "#F6F8FB",
+  rightControls: {
+    marginLeft: 10,
+    alignItems: "center",
+  },
+  topActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  assigneeCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#EAF1FF",
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 8,
+    overflow: "hidden",
   },
-  badgeText: {
-    fontSize: 18,
-    color: "#6B7280",
+  assigneeAvatar: {
+    width: "100%",
+    height: "100%",
+  },
+  assigneeInitial: {
+    color: "#35528A",
+    fontSize: 12,
     fontWeight: "700",
-    lineHeight: 20,
   },
   priceText: {
     fontWeight: "700",
@@ -870,7 +1201,21 @@ const styles = StyleSheet.create({
     borderColor: "#EDF2FF",
     backgroundColor: "#fff",
   },
+  bottomButtonsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  catalogBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2F80ED",
+    backgroundColor: "#F4F8FF",
+  },
   openListBtn: {
+    flex: 1,
     backgroundColor: "#2F80ED",
     borderRadius: 12,
     paddingVertical: 13,
@@ -926,6 +1271,96 @@ const styles = StyleSheet.create({
   },
 
   /* sheet */
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
+  },
+  assigneeModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.35)",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  assigneeModalCard: {
+    maxHeight: "68%",
+    borderRadius: 18,
+    backgroundColor: "#fff",
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+  },
+  assigneeModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F4F8",
+    marginBottom: 8,
+  },
+  assigneeCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F6F8FB",
+  },
+  assigneeCloseBtnText: {
+    color: "#6B7280",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  assigneeList: {
+    flexGrow: 0,
+  },
+  assigneeListContent: {
+    paddingBottom: 4,
+  },
+  assigneeOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    marginBottom: 4,
+    backgroundColor: "#fff",
+  },
+  assigneeOptionSelected: {
+    backgroundColor: "#EEF5FF",
+  },
+  assigneeOptionAvatarWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#EAF1FF",
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  assigneeOptionAvatar: {
+    width: "100%",
+    height: "100%",
+  },
+  assigneeOptionInitial: {
+    color: "#35528A",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  assigneeOptionName: {
+    flex: 1,
+    fontSize: 15,
+  },
+  assigneeOptionCheck: {
+    color: "#2F80ED",
+    fontSize: 16,
+    fontWeight: "700",
+    marginLeft: 8,
+  },
   sheet: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 16,
