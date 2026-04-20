@@ -1,6 +1,5 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { useAuth } from "@/context/AuthContext";
 import api from "@/src/services/api";
 import shoppingListService from "@/src/services/shoppingListService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,7 +21,6 @@ const VIEW_TEAM_KEY = "view_team_id";
 
 export default function CategoryProductsPage() {
   const router = useRouter();
-  const { user: authUser } = useAuth();
   const params = useLocalSearchParams();
   const categoryId = Number(params.id);
   const categoryName = String(params.name ?? "Категорія");
@@ -104,12 +102,9 @@ export default function CategoryProductsPage() {
         category: categoryName,
         note: "",
       };
-      const createdId = await shoppingListService.createItem(payload);
-      if (createdId != null && authUser?.id != null) {
-        await shoppingListService.updateItem(createdId, {
-          assignedToUserId: authUser.id,
-        });
-      }
+      await shoppingListService.createItem(payload);
+      // Create endpoint already assigns current user on backend.
+      // Avoid partial PUT here because it can null-out other item fields.
       setError(null);
       setSelectedProduct(null);
       router.push("/shopping-list");

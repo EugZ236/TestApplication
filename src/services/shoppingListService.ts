@@ -18,8 +18,11 @@ export interface ShoppingListItemDto {
   category: string;
   note?: string;
   isBought?: boolean;
-  assignedToUserId?: number | null;
+  assignedToUserId?: number | string | null;
+  assignedToName?: string | null;
+  assignedToAvatar?: string | null;
   productId?: number | null;
+  globalProductId?: number | null;
 }
 
 const shoppingListService = {
@@ -41,7 +44,7 @@ const shoppingListService = {
     id: number,
     payload: Partial<CreateShoppingListItemRequest> & {
       isBought?: boolean;
-      assignedToUserId?: number | null;
+      assignedToUserId?: number | string | null;
     },
   ): Promise<void> => {
     await api.put(`api/lists/items/${id}`, payload);

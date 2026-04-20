@@ -8,6 +8,15 @@ export interface GlobalProduct {
   [key: string]: any;
 }
 
+export interface ProductDetailsDto {
+  id: number;
+  name: string;
+  defaultUnit: string;
+  categoryId: number;
+  categoryName: string;
+  imageBase64?: string | null;
+}
+
 const productService = {
   searchGlobalProducts: async (q: string): Promise<string[]> => {
     if (!q.trim()) return [];
@@ -38,6 +47,11 @@ const productService = {
       console.warn("searchGlobalProducts failed", error);
       return [];
     }
+  },
+
+  getProductById: async (id: number): Promise<ProductDetailsDto> => {
+    const response = await api.get<ProductDetailsDto>(`api/Products/${id}`);
+    return response.data;
   },
 };
 
