@@ -38,6 +38,7 @@ export default function AddProductPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
     null,
   );
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
@@ -374,29 +375,38 @@ export default function AddProductPage() {
             </View>
             <View style={{ marginTop: 12 }}>
               <ThemedText style={styles.formLabel}>Категорія</ThemedText>
-              <View style={styles.categorySelector}>
-                {categories.map((category) => (
-                  <TouchableOpacity
-                    key={category.id}
-                    style={[
-                      styles.categoryOption,
-                      selectedCategoryId === category.id &&
-                        styles.categoryOptionSelected,
-                    ]}
-                    onPress={() => setSelectedCategoryId(category.id)}
-                  >
-                    <ThemedText
-                      style={
-                        selectedCategoryId === category.id
-                          ? styles.categoryOptionTextSelected
-                          : styles.categoryOptionText
-                      }
-                    >
-                      {category.name}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <TouchableOpacity
+                style={styles.dropdownToggle}
+                onPress={() => setDropdownOpen((s) => !s)}
+              >
+                <ThemedText style={styles.dropdownToggleText}>
+                  {categories.find((c) => c.id === selectedCategoryId)?.name ||
+                    "Оберіть категорію"}
+                </ThemedText>
+                <Text style={styles.dropdownArrow}>
+                  {dropdownOpen ? "▲" : "▼"}
+                </Text>
+              </TouchableOpacity>
+              {dropdownOpen ? (
+                <View style={styles.dropdownList}>
+                  <ScrollView style={{ maxHeight: 180 }}>
+                    {categories.map((category) => (
+                      <TouchableOpacity
+                        key={category.id}
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setSelectedCategoryId(category.id);
+                          setDropdownOpen(false);
+                        }}
+                      >
+                        <ThemedText style={styles.dropdownItemText}>
+                          {category.name}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
             </View>
             <View style={{ marginTop: 12 }}>
               <ThemedText style={styles.formLabel}>Картинка</ThemedText>
@@ -405,7 +415,7 @@ export default function AddProductPage() {
                 onPress={handlePickProductImage}
               >
                 <ThemedText style={styles.imagePickerBtnText}>
-                  Обрати з галереї
+                  Обрати фото
                 </ThemedText>
               </TouchableOpacity>
               {newProductImageUri ? (
@@ -593,6 +603,37 @@ const styles = StyleSheet.create({
   categoryOptionTextSelected: {
     color: "#fff",
     fontSize: 12,
+  },
+  dropdownToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+    marginTop: 8,
+  },
+  dropdownToggleText: { fontSize: 14, color: "#111" },
+  dropdownArrow: { marginLeft: 8, color: "#666" },
+  dropdownList: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    padding: 6,
+  },
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: "#444",
   },
   searchResultCard: {
     width: "100%",
