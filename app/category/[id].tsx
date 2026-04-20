@@ -42,7 +42,9 @@ export default function CategoryProductsPage() {
   const [newProductName, setNewProductName] = useState("");
   const [newProductUnit, setNewProductUnit] = useState("шт");
   const [newProductImageBase64, setNewProductImageBase64] = useState("");
-  const [newProductImageUri, setNewProductImageUri] = useState<string | null>(null);
+  const [newProductImageUri, setNewProductImageUri] = useState<string | null>(
+    null,
+  );
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
@@ -571,7 +573,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
-  },  imagePickerBtn: {
+  },
+  imagePickerBtn: {
     marginTop: 8,
     borderWidth: 1,
     borderColor: "#2F80ED",
@@ -591,7 +594,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginTop: 10,
     backgroundColor: "#F4F7FF",
-  },  saveBtn: {
+  },
+  saveBtn: {
     marginTop: 12,
     backgroundColor: "#2F80ED",
     borderRadius: 10,
