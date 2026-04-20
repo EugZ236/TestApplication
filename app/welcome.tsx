@@ -32,8 +32,12 @@ export default function WelcomePage() {
 
         <View style={styles.cardContainer}>
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{t("welcome.createFamilyTitle")}</Text>
-            <Text style={styles.cardDesc}>{t("welcome.createFamilyDescription")}</Text>
+            <Text style={styles.cardTitle}>
+              {t("welcome.createFamilyTitle")}
+            </Text>
+            <Text style={styles.cardDesc}>
+              {t("welcome.createFamilyDescription")}
+            </Text>
             <TouchableOpacity
               style={styles.cardButton}
               onPress={async () => {
@@ -45,13 +49,17 @@ export default function WelcomePage() {
                 router.push("/create-team");
               }}
             >
-              <Text style={styles.cardButtonText}>{t("welcome.createAction")}</Text>
+              <Text style={styles.cardButtonText}>
+                {t("welcome.createAction")}
+              </Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t("welcome.joinByCodeTitle")}</Text>
-            <Text style={styles.cardDesc}>{t("welcome.joinByCodeDescription")}</Text>
+            <Text style={styles.cardDesc}>
+              {t("welcome.joinByCodeDescription")}
+            </Text>
             <TouchableOpacity
               style={[styles.cardButton, styles.ghostButton]}
               onPress={() => router.push("/join-team")}

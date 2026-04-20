@@ -32,7 +32,10 @@ export default function JoinTeamPage() {
     const trimmedCode = code.trim();
 
     if (!trimmedCode) {
-      showToast.error(t("joinTeam.missingCodeTitle"), t("joinTeam.missingCodeText"));
+      showToast.error(
+        t("joinTeam.missingCodeTitle"),
+        t("joinTeam.missingCodeText"),
+      );
       return;
     }
 
@@ -49,7 +52,12 @@ export default function JoinTeamPage() {
       Alert.alert(
         t("joinTeam.successTitle"),
         t("joinTeam.successText", { teamName: result.teamName }),
-        [{ text: t("joinTeam.successAction"), onPress: () => router.replace("/(tabs)") }],
+        [
+          {
+            text: t("joinTeam.successAction"),
+            onPress: () => router.replace("/(tabs)"),
+          },
+        ],
       );
     } catch (e: any) {
       console.error(e);
@@ -100,7 +108,9 @@ export default function JoinTeamPage() {
         {isLoading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.primaryButtonText}>{t("joinTeam.joinButton")}</Text>
+          <Text style={styles.primaryButtonText}>
+            {t("joinTeam.joinButton")}
+          </Text>
         )}
       </TouchableOpacity>
 
@@ -109,7 +119,9 @@ export default function JoinTeamPage() {
         onPress={() => router.push("/qr-scan")}
         disabled={isLoading}
       >
-        <Text style={styles.ghostButtonText}>{t("joinTeam.joinByQrButton")}</Text>
+        <Text style={styles.ghostButtonText}>
+          {t("joinTeam.joinByQrButton")}
+        </Text>
       </TouchableOpacity>
     </ThemedView>
   );

@@ -64,7 +64,10 @@ export default function EditTeamPage() {
 
       setName(team.name || "");
     } catch {
-      showToast.error(t("editTeam.loadFailedTitle"), t("editTeam.loadFailedText"));
+      showToast.error(
+        t("editTeam.loadFailedTitle"),
+        t("editTeam.loadFailedText"),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +79,10 @@ export default function EditTeamPage() {
 
   async function saveTeam() {
     if (!name.trim() || !id) {
-      showToast.error(t("editTeam.emptyNameTitle"), t("editTeam.emptyNameText"));
+      showToast.error(
+        t("editTeam.emptyNameTitle"),
+        t("editTeam.emptyNameText"),
+      );
       return;
     }
 
@@ -85,9 +91,11 @@ export default function EditTeamPage() {
       await teamService.updateTeam(id, name.trim());
       await AsyncStorage.removeItem("edit_team_id");
 
-      Alert.alert(t("editTeam.saveSuccessTitle"), t("editTeam.saveSuccessText"), [
-        { text: t("common.done"), onPress: () => router.replace("/(tabs)") },
-      ]);
+      Alert.alert(
+        t("editTeam.saveSuccessTitle"),
+        t("editTeam.saveSuccessText"),
+        [{ text: t("common.done"), onPress: () => router.replace("/(tabs)") }],
+      );
     } catch (e: any) {
       const msg =
         e.response?.status === 403
@@ -143,7 +151,9 @@ export default function EditTeamPage() {
             {isSaving ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.primaryButtonText}>{t("editTeam.saveButton")}</Text>
+              <Text style={styles.primaryButtonText}>
+                {t("editTeam.saveButton")}
+              </Text>
             )}
           </TouchableOpacity>
 
@@ -151,7 +161,9 @@ export default function EditTeamPage() {
             style={styles.ghostButton}
             onPress={() => router.replace("/(tabs)")}
           >
-            <Text style={styles.ghostButtonText}>{t("editTeam.cancelButton")}</Text>
+            <Text style={styles.ghostButtonText}>
+              {t("editTeam.cancelButton")}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

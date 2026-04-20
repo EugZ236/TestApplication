@@ -133,8 +133,7 @@ export default function RegisterPage() {
       );
       router.replace("/welcome");
     } catch (error: any) {
-      const msg =
-        error.response?.data || t("register.registerFailedDefault");
+      const msg = error.response?.data || t("register.registerFailedDefault");
       showToast.error(
         t("register.registerFailedTitle"),
         typeof msg === "string" ? msg : t("register.registerFailedCheckData"),
@@ -265,7 +264,9 @@ export default function RegisterPage() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.primaryButtonText}>{t("register.submit")}</Text>
+                <Text style={styles.primaryButtonText}>
+                  {t("register.submit")}
+                </Text>
               )}
             </TouchableOpacity>
 
@@ -273,7 +274,9 @@ export default function RegisterPage() {
               style={styles.ghostButton}
               onPress={() => router.push("/login")}
             >
-              <Text style={styles.ghostButtonText}>{t("register.hasAccount")}</Text>
+              <Text style={styles.ghostButtonText}>
+                {t("register.hasAccount")}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

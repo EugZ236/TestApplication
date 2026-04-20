@@ -68,7 +68,10 @@ export default function ProfilePage() {
       setHandle(user?.email ? `@${user.email}` : t("common.profileFallback"));
       setAvatar(null);
       setPreferences([]);
-      Alert.alert(t("profile.profileLoadFailedTitle"), t("profile.profileLoadFailedText"));
+      Alert.alert(
+        t("profile.profileLoadFailedTitle"),
+        t("profile.profileLoadFailedText"),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -126,10 +129,16 @@ export default function ProfilePage() {
     try {
       await userService.savePhoto(photoBase64);
       setAvatar(photoBase64);
-      showToast.success(t("profile.photoSavedTitle"), t("profile.photoSavedText"));
+      showToast.success(
+        t("profile.photoSavedTitle"),
+        t("profile.photoSavedText"),
+      );
     } catch (error: any) {
       console.error("[Profile] Не вдалося зберегти фото:", error?.message);
-      showToast.error(t("profile.photoSaveFailedTitle"), t("profile.photoSaveFailedText"));
+      showToast.error(
+        t("profile.photoSaveFailedTitle"),
+        t("profile.photoSaveFailedText"),
+      );
     } finally {
       setIsSavingPhoto(false);
     }
@@ -193,14 +202,20 @@ export default function ProfilePage() {
 
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{t("profile.sectionTitle")}</Text>
+                <Text style={styles.sectionTitle}>
+                  {t("profile.sectionTitle")}
+                </Text>
                 <TouchableOpacity onPress={() => router.push("/settings")}>
-                  <Text style={styles.sectionAction}>{t("profile.change")}</Text>
+                  <Text style={styles.sectionAction}>
+                    {t("profile.change")}
+                  </Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.chipsRow}>
                 {preferences.length === 0 ? (
-                  <Text style={styles.emptyText}>{t("profile.emptyPreferences")}</Text>
+                  <Text style={styles.emptyText}>
+                    {t("profile.emptyPreferences")}
+                  </Text>
                 ) : (
                   preferences.map((id) => {
                     const option = getDietaryPreferenceOption(id);

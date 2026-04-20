@@ -39,7 +39,8 @@ export const uk: Dictionary = {
     getStarted: "Почати",
     slide1: {
       title: "Заощаджуйте до 30% бюджету",
-      description: "Відстежуйте витрати та знаходьте способи економити без зусиль",
+      description:
+        "Відстежуйте витрати та знаходьте способи економити без зусиль",
     },
     slide2: {
       title: "Не забувайте, що є вдома",
@@ -112,7 +113,7 @@ export const uk: Dictionary = {
     copySuccessText: "Код запрошення у буфері",
     inviteShareTitle: "Запрошення в SmartMeal",
     inviteShareMessage:
-      "Приєднуйся до моєї команди \"{{teamName}}\" у SmartMeal!\n\n{{link}}",
+      'Приєднуйся до моєї команди "{{teamName}}" у SmartMeal!\n\n{{link}}',
     deleteDialogTitle: "Видалити команду",
     deleteDialogText: "Ви впевнені? Лише творець команди може це зробити.",
     deleteSuccessTitle: "Успішно",
@@ -244,9 +245,9 @@ export const uk: Dictionary = {
     missingCodeTitle: "Помилка",
     missingCodeText: "Будь ласка, введіть код запрошення",
     newMemberTitle: "Новий учасник",
-    newMemberBody: "Користувач приєднався до команди \"{{teamName}}\"",
+    newMemberBody: 'Користувач приєднався до команди "{{teamName}}"',
     successTitle: "Успіх",
-    successText: "Ви приєдналися до команди \"{{teamName}}\"",
+    successText: 'Ви приєдналися до команди "{{teamName}}"',
     successAction: "Чудово",
     genericError: "Щось пішло не так. Спробуйте пізніше.",
     notFoundError:

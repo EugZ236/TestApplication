@@ -101,33 +101,29 @@ export default function TeamsScreen() {
   }
 
   async function confirmDelete(id: number) {
-    Alert.alert(
-      t("teams.deleteDialogTitle"),
-      t("teams.deleteDialogText"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("common.delete"),
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteTeam(id);
-              closeMenu();
-              showToast.success(
-                t("teams.deleteSuccessTitle"),
-                t("teams.deleteSuccessText"),
-              );
-            } catch (e: any) {
-              const msg =
-                e.response?.status === 403
-                  ? t("teams.deleteNoPermission")
-                  : t("teams.deleteFailed");
-              showToast.error(t("common.error"), msg);
-            }
-          },
+    Alert.alert(t("teams.deleteDialogTitle"), t("teams.deleteDialogText"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("common.delete"),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteTeam(id);
+            closeMenu();
+            showToast.success(
+              t("teams.deleteSuccessTitle"),
+              t("teams.deleteSuccessText"),
+            );
+          } catch (e: any) {
+            const msg =
+              e.response?.status === 403
+                ? t("teams.deleteNoPermission")
+                : t("teams.deleteFailed");
+            showToast.error(t("common.error"), msg);
+          }
         },
-      ],
-    );
+      },
+    ]);
   }
 
   async function openCreateTeamFromFab() {
@@ -235,7 +231,9 @@ export default function TeamsScreen() {
                 style={styles.createButton}
                 onPress={() => router.push("/create-team")}
               >
-                <Text style={styles.createButtonText}>{t("teams.emptyButton")}</Text>
+                <Text style={styles.createButtonText}>
+                  {t("teams.emptyButton")}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -272,7 +270,9 @@ export default function TeamsScreen() {
               onPress={openCreateTeamFromFab}
             >
               <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
-              <Text style={styles.fabMenuActionText}>{t("teams.fabCreate")}</Text>
+              <Text style={styles.fabMenuActionText}>
+                {t("teams.fabCreate")}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -280,7 +280,9 @@ export default function TeamsScreen() {
               onPress={openJoinByQrFromFab}
             >
               <Ionicons name="qr-code-outline" size={20} color="#007AFF" />
-              <Text style={styles.fabMenuActionText}>{t("teams.fabJoinQr")}</Text>
+              <Text style={styles.fabMenuActionText}>
+                {t("teams.fabJoinQr")}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity

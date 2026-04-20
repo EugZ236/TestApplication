@@ -39,7 +39,8 @@ export const en: Dictionary = {
     getStarted: "Get Started",
     slide1: {
       title: "Save up to 30% of your budget",
-      description: "Track spending and discover ways to save money effortlessly",
+      description:
+        "Track spending and discover ways to save money effortlessly",
     },
     slide2: {
       title: "Never forget what you have at home",
@@ -111,8 +112,7 @@ export const en: Dictionary = {
     copySuccessTitle: "Copied",
     copySuccessText: "Invite code is now in your clipboard",
     inviteShareTitle: "SmartMeal invitation",
-    inviteShareMessage:
-      "Join my team \"{{teamName}}\" in SmartMeal!\n\n{{link}}",
+    inviteShareMessage: 'Join my team "{{teamName}}" in SmartMeal!\n\n{{link}}',
     deleteDialogTitle: "Delete team",
     deleteDialogText: "Are you sure? Only the team creator can do this.",
     deleteSuccessTitle: "Success",
@@ -243,9 +243,9 @@ export const en: Dictionary = {
     missingCodeTitle: "Error",
     missingCodeText: "Please enter an invite code",
     newMemberTitle: "New member",
-    newMemberBody: "A user joined team \"{{teamName}}\"",
+    newMemberBody: 'A user joined team "{{teamName}}"',
     successTitle: "Success",
-    successText: "You joined team \"{{teamName}}\"",
+    successText: 'You joined team "{{teamName}}"',
     successAction: "Great",
     genericError: "Something went wrong. Please try later.",
     notFoundError: "Team with this code was not found. Check the code.",

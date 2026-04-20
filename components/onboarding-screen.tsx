@@ -1,14 +1,9 @@
+import { useI18n } from "@/context/LanguageContext";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
-import { useI18n } from "@/context/LanguageContext";
 
 interface OnboardingScreenProps {
   title: string;

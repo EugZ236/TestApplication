@@ -86,8 +86,11 @@ export default function TabLayout() {
       // 4. Ручной запуск локального уведомления для показа баннера
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: remoteMessage.notification?.title || t("notifications.defaultTitle"),
-          body: remoteMessage.notification?.body || t("notifications.defaultBody"),
+          title:
+            remoteMessage.notification?.title ||
+            t("notifications.defaultTitle"),
+          body:
+            remoteMessage.notification?.body || t("notifications.defaultBody"),
           data: remoteMessage.data, // передаем данные для обработки нажатия
         },
         trigger: null, // Показать мгновенно

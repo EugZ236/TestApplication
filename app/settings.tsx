@@ -57,7 +57,9 @@ export default function SettingsPage() {
       const fullName =
         `${nameData?.firstName ?? ""} ${nameData?.lastName ?? ""}`.trim();
       setProfileName(fullName || userFallbackName);
-      setProfileHandle(user?.email ? `@${user.email}` : t("common.profileFallback"));
+      setProfileHandle(
+        user?.email ? `@${user.email}` : t("common.profileFallback"),
+      );
       setAvatar(photoData || null);
       setPreferences(Array.isArray(preferencesData) ? preferencesData : []);
     } catch (error: any) {
@@ -66,7 +68,9 @@ export default function SettingsPage() {
         error?.message,
       );
       setProfileName(userFallbackName);
-      setProfileHandle(user?.email ? `@${user.email}` : t("common.profileFallback"));
+      setProfileHandle(
+        user?.email ? `@${user.email}` : t("common.profileFallback"),
+      );
       Alert.alert(
         t("settings.profileLoadFailedTitle"),
         t("settings.profileLoadFailedText"),
@@ -126,10 +130,16 @@ export default function SettingsPage() {
       if (closeModal) {
         setIsPhotoModalVisible(false);
       }
-      showToast.success(t("settings.photoUpdatedTitle"), t("settings.photoUpdatedText"));
+      showToast.success(
+        t("settings.photoUpdatedTitle"),
+        t("settings.photoUpdatedText"),
+      );
     } catch (error: any) {
       console.error("[Settings] Не вдалося зберегти фото:", error?.message);
-      showToast.error(t("settings.photoUpdateFailedTitle"), t("settings.photoUpdateFailedText"));
+      showToast.error(
+        t("settings.photoUpdateFailedTitle"),
+        t("settings.photoUpdateFailedText"),
+      );
     } finally {
       setIsSavingPhoto(false);
     }
@@ -176,10 +186,16 @@ export default function SettingsPage() {
       await userService.deletePhoto();
       setAvatar(null);
       setIsPhotoModalVisible(false);
-      showToast.success(t("settings.photoDeletedTitle"), t("settings.photoDeletedText"));
+      showToast.success(
+        t("settings.photoDeletedTitle"),
+        t("settings.photoDeletedText"),
+      );
     } catch (error: any) {
       console.error("[Settings] Не вдалося видалити фото:", error?.message);
-      showToast.error(t("settings.photoDeleteFailedTitle"), t("settings.photoDeleteFailedText"));
+      showToast.error(
+        t("settings.photoDeleteFailedTitle"),
+        t("settings.photoDeleteFailedText"),
+      );
     } finally {
       setIsSavingPhoto(false);
     }
@@ -211,7 +227,9 @@ export default function SettingsPage() {
         {isLoading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color="#2C64E0" />
-            <Text style={styles.loadingText}>{t("settings.loadingProfile")}</Text>
+            <Text style={styles.loadingText}>
+              {t("settings.loadingProfile")}
+            </Text>
           </View>
         ) : (
           <>
@@ -242,7 +260,9 @@ export default function SettingsPage() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("settings.sectionTheme")}</Text>
+              <Text style={styles.sectionTitle}>
+                {t("settings.sectionTheme")}
+              </Text>
               <View style={styles.themeRow}>
                 <TouchableOpacity
                   style={[
@@ -313,8 +333,12 @@ export default function SettingsPage() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("settings.sectionLanguage")}</Text>
-              <Text style={styles.languageHint}>{t("settings.languageSystemHint")}</Text>
+              <Text style={styles.sectionTitle}>
+                {t("settings.sectionLanguage")}
+              </Text>
+              <Text style={styles.languageHint}>
+                {t("settings.languageSystemHint")}
+              </Text>
               <View style={styles.themeRow}>
                 <TouchableOpacity
                   style={[
@@ -368,7 +392,9 @@ export default function SettingsPage() {
 
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{t("settings.sectionPreferences")}</Text>
+                <Text style={styles.sectionTitle}>
+                  {t("settings.sectionPreferences")}
+                </Text>
                 <TouchableOpacity
                   style={styles.savePreferencesBtn}
                   onPress={onSavePreferences}
@@ -410,7 +436,9 @@ export default function SettingsPage() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("settings.sectionAccount")}</Text>
+              <Text style={styles.sectionTitle}>
+                {t("settings.sectionAccount")}
+              </Text>
 
               <TouchableOpacity
                 style={styles.menuRow}
@@ -443,13 +471,17 @@ export default function SettingsPage() {
                     color="#16A34A"
                   />
                 </View>
-                <Text style={styles.menuText}>{t("settings.notifications")}</Text>
+                <Text style={styles.menuText}>
+                  {t("settings.notifications")}
+                </Text>
                 <Ionicons name="chevron-forward" size={18} color="#B8C2D1" />
               </TouchableOpacity>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("settings.sectionSession")}</Text>
+              <Text style={styles.sectionTitle}>
+                {t("settings.sectionSession")}
+              </Text>
               <TouchableOpacity
                 style={[styles.menuRow, styles.logoutRow]}
                 onPress={() => router.push("/logout")}
@@ -468,8 +500,12 @@ export default function SettingsPage() {
       <Modal visible={isPhotoModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{t("settings.photoModalTitle")}</Text>
-            <Text style={styles.modalCaption}>{t("settings.photoModalCaption")}</Text>
+            <Text style={styles.modalTitle}>
+              {t("settings.photoModalTitle")}
+            </Text>
+            <Text style={styles.modalCaption}>
+              {t("settings.photoModalCaption")}
+            </Text>
 
             <TouchableOpacity
               style={styles.pickImageBtn}
@@ -477,7 +513,9 @@ export default function SettingsPage() {
               disabled={isSavingPhoto}
             >
               <Ionicons name="images-outline" size={16} color="#1D4ED8" />
-              <Text style={styles.pickImageBtnText}>{t("settings.pickFromGallery")}</Text>
+              <Text style={styles.pickImageBtnText}>
+                {t("settings.pickFromGallery")}
+              </Text>
             </TouchableOpacity>
 
             <View style={styles.modalActions}>
@@ -485,7 +523,9 @@ export default function SettingsPage() {
                 style={[styles.modalBtn, styles.modalBtnLight]}
                 onPress={() => setIsPhotoModalVisible(false)}
               >
-                <Text style={styles.modalBtnLightText}>{t("common.cancel")}</Text>
+                <Text style={styles.modalBtnLightText}>
+                  {t("common.cancel")}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -494,7 +534,9 @@ export default function SettingsPage() {
               onPress={onDeletePhoto}
               disabled={isSavingPhoto}
             >
-              <Text style={styles.deletePhotoText}>{t("settings.deletePhoto")}</Text>
+              <Text style={styles.deletePhotoText}>
+                {t("settings.deletePhoto")}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

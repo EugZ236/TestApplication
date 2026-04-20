@@ -58,7 +58,10 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(email, password);
-      showToast.success(t("login.loginSuccessTitle"), t("login.loginSuccessText"));
+      showToast.success(
+        t("login.loginSuccessTitle"),
+        t("login.loginSuccessText"),
+      );
       router.replace("/(tabs)");
     } catch (error: any) {
       const msg = error.response?.data || t("login.loginInvalidCredentials");
@@ -157,7 +160,9 @@ export default function LoginPage() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.primaryButtonText}>{t("login.submit")}</Text>
+                <Text style={styles.primaryButtonText}>
+                  {t("login.submit")}
+                </Text>
               )}
             </TouchableOpacity>
 

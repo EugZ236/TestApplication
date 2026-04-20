@@ -24,8 +24,13 @@ type LanguageContextValue = {
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
-export function AppLanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<AppLanguage>(getDefaultLanguage);
+export function AppLanguageProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [language, setLanguageState] =
+    useState<AppLanguage>(getDefaultLanguage);
 
   React.useEffect(() => {
     let mounted = true;
@@ -70,7 +75,9 @@ export function AppLanguageProvider({ children }: { children: React.ReactNode })
   );
 
   return (
-    <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
+    <LanguageContext.Provider value={value}>
+      {children}
+    </LanguageContext.Provider>
   );
 }
 
