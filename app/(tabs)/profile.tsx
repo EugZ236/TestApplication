@@ -1,4 +1,5 @@
 import { useAuth } from "@/context/AuthContext";
+import { useI18n } from "@/context/LanguageContext";
 import { getDietaryPreferenceOption } from "@/src/constants/dietaryPreferences";
 import userService from "@/src/services/userService";
 import { showToast } from "@/utils/toast";
@@ -21,8 +22,9 @@ import {
 export default function ProfilePage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useI18n();
 
-  const [firstName, setFirstName] = useState("Користувач");
+  const [firstName, setFirstName] = useState(t("common.user"));
   const [lastName, setLastName] = useState("");
   const [handle, setHandle] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -31,8 +33,8 @@ export default function ProfilePage() {
   const [isSavingPhoto, setIsSavingPhoto] = useState(false);
 
   const fallbackFirstName = useMemo(
-    () => user?.firstName?.trim() || "Користувач",
-    [user?.firstName],
+    () => user?.firstName?.trim() || t("common.user"),
+    [t, user?.firstName],
   );
 
   const fallbackLastName = useMemo(
@@ -42,8 +44,8 @@ export default function ProfilePage() {
 
   const displayName = useMemo(() => {
     const fullName = `${firstName} ${lastName}`.trim();
-    return fullName || "Користувач";
-  }, [firstName, lastName]);
+    return fullName || t("common.user");
+  }, [firstName, lastName, t]);
 
   const loadProfile = useCallback(async () => {
     setIsLoading(true);
@@ -56,21 +58,24 @@ export default function ProfilePage() {
 
       setFirstName((nameData?.firstName ?? "").trim() || fallbackFirstName);
       setLastName((nameData?.lastName ?? "").trim() || fallbackLastName);
-      setHandle(user?.email ? `@${user.email}` : "@profile");
+      setHandle(user?.email ? `@${user.email}` : t("common.profileFallback"));
       setAvatar(photoData || null);
       setPreferences(Array.isArray(preferencesData) ? preferencesData : []);
     } catch (error: any) {
       console.error("[Profile] Помилка завантаження:", error?.message);
       setFirstName(fallbackFirstName);
       setLastName(fallbackLastName);
-      setHandle(user?.email ? `@${user.email}` : "@profile");
+      setHandle(user?.email ? `@${user.email}` : t("common.profileFallback"));
       setAvatar(null);
       setPreferences([]);
-      Alert.alert("Помилка", "Не вдалося завантажити дані профілю.");
+      Alert.alert(
+        t("profile.profileLoadFailedTitle"),
+        t("profile.profileLoadFailedText"),
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [fallbackFirstName, fallbackLastName, user?.email]);
+  }, [fallbackFirstName, fallbackLastName, t, user?.email]);
 
   useFocusEffect(
     useCallback(() => {
@@ -91,8 +96,8 @@ export default function ProfilePage() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       showToast.info(
-        "Доступ заборонено",
-        "Надайте доступ до галереї в налаштуваннях",
+        t("profile.permissionDeniedTitle"),
+        t("profile.permissionDeniedText"),
       );
       return;
     }
@@ -111,8 +116,8 @@ export default function ProfilePage() {
     const selected = result.assets?.[0];
     if (!selected?.base64) {
       showToast.error(
-        "Помилка",
-        "Не вдалося підготувати фото для завантаження",
+        t("profile.invalidPhotoTitle"),
+        t("profile.invalidPhotoText"),
       );
       return;
     }
@@ -124,10 +129,16 @@ export default function ProfilePage() {
     try {
       await userService.savePhoto(photoBase64);
       setAvatar(photoBase64);
-      showToast.success("Готово", "Фото профілю оновлено");
+      showToast.success(
+        t("profile.photoSavedTitle"),
+        t("profile.photoSavedText"),
+      );
     } catch (error: any) {
       console.error("[Profile] Не вдалося зберегти фото:", error?.message);
-      showToast.error("Помилка", "Не вдалося оновити фото");
+      showToast.error(
+        t("profile.photoSaveFailedTitle"),
+        t("profile.photoSaveFailedText"),
+      );
     } finally {
       setIsSavingPhoto(false);
     }
@@ -178,7 +189,7 @@ export default function ProfilePage() {
         {isLoading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color="#2C64E0" />
-            <Text style={styles.loadingText}>Оновлення профілю...</Text>
+            <Text style={styles.loadingText}>{t("profile.loading")}</Text>
           </View>
         ) : (
           <>
@@ -191,23 +202,28 @@ export default function ProfilePage() {
 
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Мої вподобання</Text>
+                <Text style={styles.sectionTitle}>
+                  {t("profile.sectionTitle")}
+                </Text>
                 <TouchableOpacity onPress={() => router.push("/settings")}>
-                  <Text style={styles.sectionAction}>Змінити</Text>
+                  <Text style={styles.sectionAction}>
+                    {t("profile.change")}
+                  </Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.chipsRow}>
                 {preferences.length === 0 ? (
                   <Text style={styles.emptyText}>
-                    Ще немає обраних вподобань.
+                    {t("profile.emptyPreferences")}
                   </Text>
                 ) : (
                   preferences.map((id) => {
                     const option = getDietaryPreferenceOption(id);
+                    const translatedLabel = t(`dietaryPreferences.${id}`);
                     return (
                       <View style={styles.chip} key={id}>
                         <Text style={styles.chipIcon}>{option.emoji}</Text>
-                        <Text style={styles.chipText}>{option.label}</Text>
+                        <Text style={styles.chipText}>{translatedLabel}</Text>
                       </View>
                     );
                   })

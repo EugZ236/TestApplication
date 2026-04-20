@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { useI18n } from "@/context/LanguageContext";
 import { useTeamStore } from "@/src/store/useTeamStore";
 import { buildTeamInviteQrUri } from "@/utils/teamInviteQr";
 import { showToast } from "@/utils/toast";
@@ -37,13 +38,14 @@ const getAvatarColor = (name: string) => {
 export default function TeamsScreen() {
   const router = useRouter();
   const { teams, isLoading, fetchTeams, deleteTeam } = useTeamStore();
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
       fetchTeams();
-    }, []),
+    }, [fetchTeams]),
   );
 
   const [menuVisible, setMenuVisible] = useState(false);
@@ -57,7 +59,7 @@ export default function TeamsScreen() {
     if (!code) return;
     await Clipboard.setStringAsync(code);
     setMenuVisible(false);
-    showToast.info("Скопійовано", "Код інвайту вже у вашому буфері 📋");
+    showToast.info(t("teams.copySuccessTitle"), t("teams.copySuccessText"));
   };
 
   const shareInviteCode = async (teamName: string, code: string) => {
@@ -65,8 +67,8 @@ export default function TeamsScreen() {
     const webLink = `https://rilking1.github.io/smartmeal-link/?code=${code}`;
     try {
       await Share.share({
-        title: "Запрошення в SmartMeal",
-        message: `Приєднуйся до моєї команди "${teamName}" у SmartMeal!\n\n${webLink}`,
+        title: t("teams.inviteShareTitle"),
+        message: t("teams.inviteShareMessage", { teamName, link: webLink }),
       });
     } catch (error: any) {
       console.error(error);
@@ -99,30 +101,29 @@ export default function TeamsScreen() {
   }
 
   async function confirmDelete(id: number) {
-    Alert.alert(
-      "Видалити команду",
-      "Ви впевнені? Тільки творець команди може це зробити.",
-      [
-        { text: "Скасувати", style: "cancel" },
-        {
-          text: "Видалити",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteTeam(id);
-              closeMenu();
-              showToast.success("Успішно", "Команду видалено 👋");
-            } catch (e: any) {
-              const msg =
-                e.response?.status === 403
-                  ? "У вас немає прав на видалення"
-                  : "Не вдалося видалити команду";
-              showToast.error("Помилка", msg);
-            }
-          },
+    Alert.alert(t("teams.deleteDialogTitle"), t("teams.deleteDialogText"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("common.delete"),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteTeam(id);
+            closeMenu();
+            showToast.success(
+              t("teams.deleteSuccessTitle"),
+              t("teams.deleteSuccessText"),
+            );
+          } catch (e: any) {
+            const msg =
+              e.response?.status === 403
+                ? t("teams.deleteNoPermission")
+                : t("teams.deleteFailed");
+            showToast.error(t("common.error"), msg);
+          }
         },
-      ],
-    );
+      },
+    ]);
   }
 
   async function openCreateTeamFromFab() {
@@ -136,14 +137,14 @@ export default function TeamsScreen() {
     router.push("/qr-scan");
   }
 
-  const filtered = teams.filter((t) =>
-    t.name.toLowerCase().includes(query.toLowerCase()),
+  const filtered = teams.filter((teamItem) =>
+    teamItem.name.toLowerCase().includes(query.toLowerCase()),
   );
 
   return (
     <ThemedView style={styles.container}>
       <View style={styles.headerRow}>
-        <ThemedText type="title">Teams</ThemedText>
+        <ThemedText type="title">{t("teams.title")}</ThemedText>
         <TouchableOpacity
           onPress={() => {
             setShowSearch(!showSearch);
@@ -158,7 +159,7 @@ export default function TeamsScreen() {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Search teams"
+          placeholder={t("teams.searchPlaceholder")}
           style={styles.searchInput}
         />
       )}
@@ -210,7 +211,7 @@ export default function TeamsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.teamName}>{item.name}</Text>
                 <Text style={styles.memberCount}>
-                  {item.memberCount} members
+                  {t("teams.memberCount", { count: item.memberCount })}
                 </Text>
               </View>
               <TouchableOpacity
@@ -225,12 +226,14 @@ export default function TeamsScreen() {
           )}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyTitle}>Nothing here. For now.</Text>
+              <Text style={styles.emptyTitle}>{t("teams.emptyTitle")}</Text>
               <TouchableOpacity
                 style={styles.createButton}
                 onPress={() => router.push("/create-team")}
               >
-                <Text style={styles.createButtonText}>Create team</Text>
+                <Text style={styles.createButtonText}>
+                  {t("teams.emptyButton")}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -260,14 +263,16 @@ export default function TeamsScreen() {
             style={styles.fabMenuCard}
             onPress={() => {}}
           >
-            <Text style={styles.fabMenuTitle}>Дії з командою</Text>
+            <Text style={styles.fabMenuTitle}>{t("teams.fabTitle")}</Text>
 
             <TouchableOpacity
               style={styles.fabMenuAction}
               onPress={openCreateTeamFromFab}
             >
               <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
-              <Text style={styles.fabMenuActionText}>Створити команду</Text>
+              <Text style={styles.fabMenuActionText}>
+                {t("teams.fabCreate")}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -275,14 +280,16 @@ export default function TeamsScreen() {
               onPress={openJoinByQrFromFab}
             >
               <Ionicons name="qr-code-outline" size={20} color="#007AFF" />
-              <Text style={styles.fabMenuActionText}>Приєднатись за QR</Text>
+              <Text style={styles.fabMenuActionText}>
+                {t("teams.fabJoinQr")}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.fabMenuCancel}
               onPress={() => setFabMenuVisible(false)}
             >
-              <Text style={styles.fabMenuCancelText}>Скасувати</Text>
+              <Text style={styles.fabMenuCancelText}>{t("common.cancel")}</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -320,7 +327,7 @@ export default function TeamsScreen() {
                     size={18}
                     color="#444"
                   />
-                  <Text style={styles.popoverText}>Інформація</Text>
+                  <Text style={styles.popoverText}>{t("teams.menuInfo")}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -329,7 +336,7 @@ export default function TeamsScreen() {
                 >
                   <Ionicons name="copy-outline" size={18} color="#007AFF" />
                   <Text style={[styles.popoverText, { color: "#007AFF" }]}>
-                    Копіювати код
+                    {t("teams.menuCopyCode")}
                   </Text>
                 </TouchableOpacity>
 
@@ -348,13 +355,13 @@ export default function TeamsScreen() {
                     color="#28A745"
                   />
                   <Text style={[styles.popoverText, { color: "#28A745" }]}>
-                    Поділитися
+                    {t("teams.menuShare")}
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.popoverRow} onPress={openEdit}>
                   <Ionicons name="create-outline" size={18} color="#444" />
-                  <Text style={styles.popoverText}>Редагувати</Text>
+                  <Text style={styles.popoverText}>{t("teams.menuEdit")}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -366,7 +373,7 @@ export default function TeamsScreen() {
                 >
                   <Ionicons name="trash-outline" size={18} color="#D9534F" />
                   <Text style={[styles.popoverText, { color: "#D9534F" }]}>
-                    Видалити
+                    {t("teams.menuDelete")}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -384,7 +391,7 @@ export default function TeamsScreen() {
       >
         <ThemedView style={{ flex: 1, padding: 20 }}>
           <View style={styles.infoModalHeader}>
-            <ThemedText type="title">Команда</ThemedText>
+            <ThemedText type="title">{t("teams.infoTitle")}</ThemedText>
             <TouchableOpacity onPress={() => setInfoVisible(false)}>
               <Ionicons name="close" size={28} color="#333" />
             </TouchableOpacity>
@@ -405,7 +412,7 @@ export default function TeamsScreen() {
             <Text style={styles.infoTeamName}>{selectedTeam?.name}</Text>
 
             <View style={styles.infoDetailRow}>
-              <Text style={styles.infoLabel}>Invite Code:</Text>
+              <Text style={styles.infoLabel}>{t("teams.inviteCodeLabel")}</Text>
               <Text style={styles.infoValue}>{selectedTeam?.inviteCode}</Text>
             </View>
 
@@ -426,7 +433,7 @@ export default function TeamsScreen() {
                         style={{ width: 160, height: 160, borderRadius: 8 }}
                       />
                       <Text style={{ color: "#666", marginTop: 8 }}>
-                        Скануйте, щоб приєднатися
+                        {t("teams.scanHint")}
                       </Text>
                     </View>
                   );
@@ -434,12 +441,12 @@ export default function TeamsScreen() {
               : null}
 
             <View style={styles.infoDetailRow}>
-              <Text style={styles.infoLabel}>Ваша роль:</Text>
+              <Text style={styles.infoLabel}>{t("teams.roleLabel")}</Text>
               <Text style={styles.infoValue}>{selectedTeam?.role}</Text>
             </View>
 
             <View style={styles.infoDetailRow}>
-              <Text style={styles.infoLabel}>Учасників:</Text>
+              <Text style={styles.infoLabel}>{t("teams.membersLabel")}</Text>
               <Text style={styles.infoValue}>{selectedTeam?.memberCount}</Text>
             </View>
 
@@ -449,7 +456,7 @@ export default function TeamsScreen() {
                 onPress={() => copyInviteCode(selectedTeam?.inviteCode)}
               >
                 <Ionicons name="copy" size={20} color="#fff" />
-                <Text style={styles.actionButtonText}>Копіювати</Text>
+                <Text style={styles.actionButtonText}>{t("common.copy")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -459,7 +466,7 @@ export default function TeamsScreen() {
                 }
               >
                 <Ionicons name="share-social" size={20} color="#fff" />
-                <Text style={styles.actionButtonText}>Поділитися</Text>
+                <Text style={styles.actionButtonText}>{t("common.share")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -468,7 +475,7 @@ export default function TeamsScreen() {
             style={styles.backButton}
             onPress={() => setInfoVisible(false)}
           >
-            <Text style={styles.backButtonText}>Закрити</Text>
+            <Text style={styles.backButtonText}>{t("teams.closeButton")}</Text>
           </TouchableOpacity>
         </ThemedView>
       </Modal>

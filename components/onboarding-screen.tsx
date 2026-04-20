@@ -1,12 +1,7 @@
+import { useI18n } from "@/context/LanguageContext";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import {
-  Dimensions,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 
@@ -20,8 +15,6 @@ interface OnboardingScreenProps {
   isLastScreen: boolean;
 }
 
-const { width } = Dimensions.get("window");
-
 export default function OnboardingScreen({
   title,
   description,
@@ -31,6 +24,8 @@ export default function OnboardingScreen({
   onSkip,
   isLastScreen,
 }: OnboardingScreenProps) {
+  const { t } = useI18n();
+
   return (
     <ThemedView style={styles.container}>
       {/* Progress bar */}
@@ -41,7 +36,7 @@ export default function OnboardingScreen({
       {/* Top info */}
       <View style={styles.topSection}>
         <Text style={styles.progressText}>
-          Onboarding {Math.round(progress)}%
+          {t("onboarding.progress", { percent: Math.round(progress) })}
         </Text>
       </View>
 
@@ -68,7 +63,7 @@ export default function OnboardingScreen({
           activeOpacity={0.7}
         >
           <Text style={styles.nextButtonText}>
-            {isLastScreen ? "Get Started" : "Next"}
+            {isLastScreen ? t("onboarding.getStarted") : t("onboarding.next")}
           </Text>
         </TouchableOpacity>
 
@@ -77,7 +72,7 @@ export default function OnboardingScreen({
           onPress={onSkip}
           activeOpacity={0.7}
         >
-          <Text style={styles.skipButtonText}>Skip</Text>
+          <Text style={styles.skipButtonText}>{t("onboarding.skip")}</Text>
         </TouchableOpacity>
       </View>
     </ThemedView>

@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
+import { useI18n } from "@/context/LanguageContext";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import Constants from "expo-constants";
 
@@ -39,6 +40,7 @@ function getFirebaseMessaging() {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { t } = useI18n();
 
   useEffect(() => {
     const Notifications = getNotificationsModule();
@@ -84,8 +86,11 @@ export default function TabLayout() {
       // 4. Ручной запуск локального уведомления для показа баннера
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: remoteMessage.notification?.title || "Заголовок",
-          body: remoteMessage.notification?.body || "Текст сообщения",
+          title:
+            remoteMessage.notification?.title ||
+            t("notifications.defaultTitle"),
+          body:
+            remoteMessage.notification?.body || t("notifications.defaultBody"),
           data: remoteMessage.data, // передаем данные для обработки нажатия
         },
         trigger: null, // Показать мгновенно
@@ -93,7 +98,7 @@ export default function TabLayout() {
     });
 
     return unsubscribe;
-  }, []);
+  }, [t]);
 
   return (
     <Tabs
@@ -106,7 +111,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Teams",
+          title: t("tabs.teams"),
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="house.fill" color={color} />
           ),
@@ -115,7 +120,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+          title: t("tabs.profile"),
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="person.fill" color={color} />
           ),
@@ -124,7 +129,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="budget"
         options={{
-          title: "Budget",
+          title: t("tabs.budget"),
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="chart.pie" color={color} />
           ),

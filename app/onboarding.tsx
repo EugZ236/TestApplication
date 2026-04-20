@@ -1,36 +1,40 @@
 import OnboardingScreen from "@/components/onboarding-screen";
+import { useI18n } from "@/context/LanguageContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
-
-const ONBOARDING_SCREENS = [
-  {
-    title: "Save up to 30% of your budget",
-    description:
-      "Track your spending and discover ways to save money effortlessly",
-    icon: "bar-chart",
-  },
-  {
-    title: "Never forget what you have at home",
-    description: "Keep an organized inventory of all your items",
-    icon: "list",
-  },
-  {
-    title: "Plan your shopping together",
-    description: "Collaborate with family and friends on shopping lists",
-    icon: "people",
-  },
-];
 
 export default function OnboardingPage() {
   const [currentScreen, setCurrentScreen] = useState(0);
   const router = useRouter();
+  const { t } = useI18n();
 
-  const progress = ((currentScreen + 1) / ONBOARDING_SCREENS.length) * 100;
+  const onboardingScreens = useMemo(
+    () => [
+      {
+        title: t("onboarding.slide1.title"),
+        description: t("onboarding.slide1.description"),
+        icon: "bar-chart",
+      },
+      {
+        title: t("onboarding.slide2.title"),
+        description: t("onboarding.slide2.description"),
+        icon: "list",
+      },
+      {
+        title: t("onboarding.slide3.title"),
+        description: t("onboarding.slide3.description"),
+        icon: "people",
+      },
+    ],
+    [t],
+  );
+
+  const progress = ((currentScreen + 1) / onboardingScreens.length) * 100;
 
   const handleNext = async () => {
-    if (currentScreen < ONBOARDING_SCREENS.length - 1) {
+    if (currentScreen < onboardingScreens.length - 1) {
       setCurrentScreen(currentScreen + 1);
     } else {
       await AsyncStorage.setItem("onboarding_completed", "true");
@@ -43,7 +47,7 @@ export default function OnboardingPage() {
     router.replace("register" as any);
   };
 
-  const screen = ONBOARDING_SCREENS[currentScreen];
+  const screen = onboardingScreens[currentScreen];
 
   return (
     <View style={styles.container}>
@@ -54,7 +58,7 @@ export default function OnboardingPage() {
         progress={progress}
         onNext={handleNext}
         onSkip={handleSkip}
-        isLastScreen={currentScreen === ONBOARDING_SCREENS.length - 1}
+        isLastScreen={currentScreen === onboardingScreens.length - 1}
       />
     </View>
   );

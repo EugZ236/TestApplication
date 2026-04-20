@@ -12,6 +12,7 @@ import "react-native-reanimated";
 import Toast from "react-native-toast-message";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { AppLanguageProvider } from "@/context/LanguageContext";
 import { AppThemeProvider } from "@/context/ThemeContext";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
@@ -135,10 +136,12 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AppThemeProvider>
-        <RootLayoutContent />
-      </AppThemeProvider>
-    </AuthProvider>
+    <AppLanguageProvider>
+      <AuthProvider>
+        <AppThemeProvider>
+          <RootLayoutContent />
+        </AppThemeProvider>
+      </AuthProvider>
+    </AppLanguageProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useI18n } from "@/context/LanguageContext";
 import teamService from "@/src/services/teamService";
 import { showToast } from "@/utils/toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -16,6 +17,7 @@ import {
 
 export default function CreateTeamPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [createContext, setCreateContext] = useState<
@@ -24,7 +26,10 @@ export default function CreateTeamPage() {
 
   async function saveTeam() {
     if (!name.trim()) {
-      showToast.error("Помилка", "Будь ласка, введіть назву команди");
+      showToast.error(
+        t("createTeam.missingNameTitle"),
+        t("createTeam.missingNameText"),
+      );
       return;
     }
 
@@ -37,7 +42,7 @@ export default function CreateTeamPage() {
       // 2. Очищення тимчасового контексту створення (якщо він був)
       try {
         await AsyncStorage.removeItem("create_context");
-      } catch (e) {
+      } catch {
         console.warn("Не вдалося очистити create_context");
       }
 
@@ -48,8 +53,8 @@ export default function CreateTeamPage() {
 
       // Виводимо детальну помилку від сервера, якщо вона є
       const serverMessage =
-        e.response?.data?.message || "Не вдалося зберегти команду на сервері";
-      showToast.error("Помилка", serverMessage);
+        e.response?.data?.message || t("createTeam.saveFailedText");
+      showToast.error(t("createTeam.saveFailedTitle"), serverMessage);
     } finally {
       setIsSaving(false);
     }
@@ -66,7 +71,7 @@ export default function CreateTeamPage() {
         if (!mounted) return;
         if (ctx === "post_signup") setCreateContext("post_signup");
         else setCreateContext("fab");
-      } catch (e) {
+      } catch {
         if (!mounted) return;
         setCreateContext("fab");
       }
@@ -78,19 +83,19 @@ export default function CreateTeamPage() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">Create teams</ThemedText>
+      <ThemedText type="title">{t("createTeam.title")}</ThemedText>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Team photo</Text>
+        <Text style={styles.label}>{t("createTeam.teamPhoto")}</Text>
         <View style={styles.avatarPlaceholder}>
           <View style={[styles.avatar, { backgroundColor: "#7FB3FF" }]} />
         </View>
 
-        <Text style={styles.label}>Team name</Text>
+        <Text style={styles.label}>{t("createTeam.teamName")}</Text>
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder="Family"
+          placeholder={t("createTeam.teamNamePlaceholder")}
           style={styles.input}
           editable={!isSaving}
         />
@@ -104,7 +109,9 @@ export default function CreateTeamPage() {
             {isSaving ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.primaryButtonText}>Create</Text>
+              <Text style={styles.primaryButtonText}>
+                {t("createTeam.createButton")}
+              </Text>
             )}
           </TouchableOpacity>
 
@@ -113,7 +120,7 @@ export default function CreateTeamPage() {
             onPress={async () => {
               try {
                 await AsyncStorage.removeItem("create_context");
-              } catch (e) {}
+              } catch {}
               if (createContext === "post_signup") {
                 router.replace("/(tabs)");
               } else {
@@ -123,7 +130,9 @@ export default function CreateTeamPage() {
             disabled={isSaving}
           >
             <Text style={styles.ghostButtonText}>
-              {createContext === "post_signup" ? "Skip" : "Back"}
+              {createContext === "post_signup"
+                ? t("createTeam.skipButton")
+                : t("createTeam.backButton")}
             </Text>
           </TouchableOpacity>
         </View>

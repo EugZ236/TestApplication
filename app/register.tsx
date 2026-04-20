@@ -2,6 +2,7 @@ import { PasswordInput } from "@/components/password-input";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import { useI18n } from "@/context/LanguageContext";
 import { showToast } from "@/utils/toast";
 import { isValidEmail, validatePassword } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
@@ -87,6 +88,7 @@ export default function RegisterPage() {
   });
   const router = useRouter();
   const { register } = useAuth();
+  const { t } = useI18n();
 
   const scrollToField = (y: number) => {
     scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
@@ -98,23 +100,26 @@ export default function RegisterPage() {
     setConfirmPasswordError("");
 
     if (!firstName || !lastName || !email || !password) {
-      showToast.error("Error", "Please fill all required fields");
+      showToast.error(
+        t("register.toastMissingFieldsTitle"),
+        t("register.toastMissingFieldsText"),
+      );
       return;
     }
 
     if (!isValidEmail(email)) {
-      setEmailError("Please enter a valid email address");
+      setEmailError(t("register.invalidEmail"));
       return;
     }
 
     const pwdValidation = validatePassword(password);
     if (!pwdValidation.valid) {
-      setPasswordError(pwdValidation.message || "Invalid password");
+      setPasswordError(pwdValidation.message || t("register.invalidPassword"));
       return;
     }
 
     if (password !== confirmPassword) {
-      setConfirmPasswordError("Passwords do not match");
+      setConfirmPasswordError(t("register.passwordsMismatch"));
       return;
     }
 
@@ -122,14 +127,16 @@ export default function RegisterPage() {
     try {
       const deviceToken = (await getFcmToken()) || "";
       await register(firstName, lastName, email, password, deviceToken);
-      showToast.success("Success", "Welcome to SmartMeal! 👋");
+      showToast.success(
+        t("register.registerSuccessTitle"),
+        t("register.registerSuccessText"),
+      );
       router.replace("/welcome");
     } catch (error: any) {
-      const msg =
-        error.response?.data || "An error occurred during registration";
+      const msg = error.response?.data || t("register.registerFailedDefault");
       showToast.error(
-        "Registration Failed",
-        typeof msg === "string" ? msg : "Check your data",
+        t("register.registerFailedTitle"),
+        typeof msg === "string" ? msg : t("register.registerFailedCheckData"),
       );
     } finally {
       setIsLoading(false);
@@ -153,10 +160,8 @@ export default function RegisterPage() {
           </TouchableOpacity>
 
           <View style={styles.content}>
-            <ThemedText type="title">Sign up</ThemedText>
-            <Text style={styles.subtitle}>
-              Create an account to get started
-            </Text>
+            <ThemedText type="title">{t("register.title")}</ThemedText>
+            <Text style={styles.subtitle}>{t("register.subtitle")}</Text>
 
             <View style={styles.form}>
               <View
@@ -166,7 +171,7 @@ export default function RegisterPage() {
               >
                 <TextInput
                   style={styles.input}
-                  placeholder="First name"
+                  placeholder={t("register.firstName")}
                   placeholderTextColor="#888"
                   value={firstName}
                   onChangeText={setFirstName}
@@ -181,7 +186,7 @@ export default function RegisterPage() {
               >
                 <TextInput
                   style={styles.input}
-                  placeholder="Last name"
+                  placeholder={t("register.lastName")}
                   placeholderTextColor="#888"
                   value={lastName}
                   onChangeText={setLastName}
@@ -196,7 +201,7 @@ export default function RegisterPage() {
               >
                 <TextInput
                   style={styles.input}
-                  placeholder="Email Address"
+                  placeholder={t("register.email")}
                   placeholderTextColor="#888"
                   keyboardType="email-address"
                   value={email}
@@ -214,7 +219,7 @@ export default function RegisterPage() {
                 }}
               >
                 <PasswordInput
-                  placeholder="Create a password"
+                  placeholder={t("register.password")}
                   placeholderTextColor="#888"
                   style={styles.input}
                   value={password}
@@ -232,7 +237,7 @@ export default function RegisterPage() {
                 }}
               >
                 <PasswordInput
-                  placeholder="Confirm password"
+                  placeholder={t("register.confirmPassword")}
                   placeholderTextColor="#888"
                   style={styles.input}
                   value={confirmPassword}
@@ -259,7 +264,9 @@ export default function RegisterPage() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.primaryButtonText}>Sign up</Text>
+                <Text style={styles.primaryButtonText}>
+                  {t("register.submit")}
+                </Text>
               )}
             </TouchableOpacity>
 
@@ -268,7 +275,7 @@ export default function RegisterPage() {
               onPress={() => router.push("/login")}
             >
               <Text style={styles.ghostButtonText}>
-                Already have an account? Log in
+                {t("register.hasAccount")}
               </Text>
             </TouchableOpacity>
           </View>
