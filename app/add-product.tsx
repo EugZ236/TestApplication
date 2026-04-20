@@ -1,18 +1,20 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import api from "@/src/services/api";
+import productService from "@/src/services/productService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    Image,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -26,6 +28,155 @@ export default function AddProductPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductUnit, setNewProductUnit] = useState("шт");
+  const [newProductImageBase64, setNewProductImageBase64] = useState("");
+  const [newProductImageUri, setNewProductImageUri] = useState<string | null>(
+    null,
+  );
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
+    null,
+  );
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<string[]>([]);
+  const [localProductNames, setLocalProductNames] = useState<string[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const isSearching = searchQuery.trim().length > 0;
+
+  useEffect(() => {
+    if (!selectedCategoryId && categories.length > 0) {
+      setSelectedCategoryId(categories[0].id);
+    }
+  }, [categories, selectedCategoryId]);
+
+  useEffect(() => {
+    let active = true;
+    const query = searchQuery.trim();
+    const timeout = setTimeout(async () => {
+      if (!query) {
+        if (active) {
+          setSearchResults([]);
+          setSearchError(null);
+          setSearchLoading(false);
+        }
+        return;
+      }
+
+      if (active) {
+        setSearchLoading(true);
+        setSearchError(null);
+      }
+
+      try {
+        const results = await productService.searchGlobalProducts(query);
+        if (active) {
+          const localMatches = localProductNames.filter((name) =>
+            name.toLowerCase().includes(query.toLowerCase()),
+          );
+          setSearchResults(Array.from(new Set([...localMatches, ...results])));
+        }
+      } catch (e) {
+        console.error("search products failed", e);
+        if (active) {
+          setSearchError("Не вдалося знайти продукти");
+          setSearchResults([]);
+        }
+      } finally {
+        if (active) {
+          setSearchLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [searchQuery, localProductNames]);
+
+  const handleCreateProduct = async () => {
+    const name = newProductName.trim();
+    if (!name) {
+      setCreateError("Введіть назву продукту");
+      return;
+    }
+    if (!selectedCategoryId) {
+      setCreateError("Оберіть категорію продукту");
+      return;
+    }
+
+    setCreateLoading(true);
+    setCreateError(null);
+    setCreateSuccess(null);
+
+    const createdId = await productService.createProduct({
+      name,
+      defaultUnit: newProductUnit.trim() || "шт",
+      categoryId: selectedCategoryId,
+      imageBase64: newProductImageBase64.trim() || undefined,
+    });
+
+    setCreateLoading(false);
+
+    if (createdId != null) {
+      setLocalProductNames((prev) =>
+        prev.includes(name) ? prev : [name, ...prev],
+      );
+      setCreateSuccess("Продукт успішно створено");
+      setShowCreateModal(false);
+      setNewProductName("");
+      setNewProductUnit("шт");
+      setNewProductImageBase64("");
+      setNewProductImageUri(null);
+      router.push(
+        `/category/${selectedCategoryId}?name=${encodeURIComponent(
+          categories.find((c) => c.id === selectedCategoryId)?.name ||
+            "Категорія",
+        )}`,
+      );
+    } else {
+      setCreateError("Не вдалося створити продукт");
+    }
+  };
+
+  const handlePickProductImage = async () => {
+    setCreateError(null);
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setCreateError("Потрібен доступ до галереї для вибору картинки");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    const selected = result.assets?.[0];
+    if (!selected?.base64) {
+      setCreateError("Не вдалося прочитати обране зображення");
+      return;
+    }
+
+    const mimeType = selected.mimeType || "image/jpeg";
+    const photoBase64 = `data:${mimeType};base64,${selected.base64}`;
+
+    setNewProductImageBase64(photoBase64);
+    setNewProductImageUri(selected.uri ?? photoBase64);
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -90,15 +241,48 @@ export default function AddProductPage() {
       <View style={styles.searchWrap}>
         <TextInput
           placeholder="Пошук (наприклад: Молоко)..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
           style={styles.searchInput}
         />
       </View>
 
       <View style={styles.sectionHeader}>
-        <ThemedText style={styles.sectionLabel}>ВСІ КАТЕГОРІЇ</ThemedText>
+        <ThemedText style={styles.sectionLabel}>
+          {isSearching ? "Результати пошуку" : "ВСІ КАТЕГОРІЇ"}
+        </ThemedText>
       </View>
 
-      {loading ? (
+      {isSearching ? (
+        searchLoading ? (
+          <View style={{ padding: 16 }}>
+            <ThemedText>Пошук...</ThemedText>
+          </View>
+        ) : searchError ? (
+          <View style={{ padding: 16 }}>
+            <ThemedText style={{ color: "#d00" }}>{searchError}</ThemedText>
+          </View>
+        ) : searchResults.length > 0 ? (
+          <ScrollView
+            style={styles.gridScroll}
+            contentContainerStyle={styles.searchResults}
+          >
+            {searchResults.map((productName) => (
+              <View key={productName} style={styles.searchResultCard}>
+                <ThemedText style={styles.searchResultText} numberOfLines={2}>
+                  {productName}
+                </ThemedText>
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={{ padding: 16 }}>
+            <ThemedText style={{ color: "#999" }}>
+              Продукти не знайдені
+            </ThemedText>
+          </View>
+        )
+      ) : loading ? (
         <View style={{ padding: 16 }}>
           <ThemedText>Завантаження категорій...</ThemedText>
         </View>
@@ -151,13 +335,109 @@ export default function AddProductPage() {
         </View>
         <TouchableOpacity
           style={styles.addBtn}
-          onPress={() => router.push("/shopping-list")}
+          onPress={() => setShowCreateModal(true)}
         >
           <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
             + Додати свій продукт
           </ThemedText>
         </TouchableOpacity>
       </View>
+
+      {showCreateModal ? (
+        <View style={styles.modalWrapper}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                <Text style={{ fontSize: 18 }}>←</Text>
+              </TouchableOpacity>
+              <ThemedText type="title" style={styles.modalTitle}>
+                Створити продукт
+              </ThemedText>
+            </View>
+            <View style={{ marginTop: 14 }}>
+              <ThemedText style={styles.formLabel}>Назва</ThemedText>
+              <TextInput
+                style={styles.modalInput}
+                value={newProductName}
+                onChangeText={setNewProductName}
+                placeholder="Введіть назву"
+              />
+            </View>
+            <View style={{ marginTop: 12 }}>
+              <ThemedText style={styles.formLabel}>Одиниця</ThemedText>
+              <TextInput
+                style={styles.modalInput}
+                value={newProductUnit}
+                onChangeText={setNewProductUnit}
+                placeholder="шт, г, мл"
+              />
+            </View>
+            <View style={{ marginTop: 12 }}>
+              <ThemedText style={styles.formLabel}>Категорія</ThemedText>
+              <View style={styles.categorySelector}>
+                {categories.map((category) => (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[
+                      styles.categoryOption,
+                      selectedCategoryId === category.id &&
+                        styles.categoryOptionSelected,
+                    ]}
+                    onPress={() => setSelectedCategoryId(category.id)}
+                  >
+                    <ThemedText
+                      style={
+                        selectedCategoryId === category.id
+                          ? styles.categoryOptionTextSelected
+                          : styles.categoryOptionText
+                      }
+                    >
+                      {category.name}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <View style={{ marginTop: 12 }}>
+              <ThemedText style={styles.formLabel}>Картинка</ThemedText>
+              <TouchableOpacity
+                style={styles.imagePickerBtn}
+                onPress={handlePickProductImage}
+              >
+                <ThemedText style={styles.imagePickerBtnText}>
+                  Обрати з галереї
+                </ThemedText>
+              </TouchableOpacity>
+              {newProductImageUri ? (
+                <Image
+                  source={{ uri: newProductImageUri }}
+                  style={styles.previewImage}
+                  resizeMode="cover"
+                />
+              ) : null}
+            </View>
+            {createError ? (
+              <ThemedText style={{ color: "#d00", marginTop: 10 }}>
+                {createError}
+              </ThemedText>
+            ) : null}
+            {createSuccess ? (
+              <ThemedText style={{ color: "#148A08", marginTop: 10 }}>
+                {createSuccess}
+              </ThemedText>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.saveBtn, { opacity: createLoading ? 0.7 : 1 }]}
+              onPress={handleCreateProduct}
+              disabled={createLoading}
+            >
+              <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
+                {createLoading ? "Створюємо..." : "Створити продукт"}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
     </ThemedView>
   );
 }
@@ -201,6 +481,10 @@ const styles = StyleSheet.create({
     gap: 10,
     justifyContent: "space-between",
     paddingBottom: 20,
+  },
+  searchResults: {
+    paddingHorizontal: 12,
+    paddingBottom: 120,
   },
   categoryCard: {
     width: "48%",
@@ -262,13 +546,87 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 16,
     padding: 16,
   },
-  titleInput: {
-    marginTop: 10,
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  modalTitle: {
+    flex: 1,
+    marginLeft: 4,
+  },
+  formLabel: {
+    color: "#444",
+    fontSize: 12,
+  },
+  modalInput: {
+    marginTop: 6,
     borderWidth: 1,
     borderColor: "#EEF2F7",
     borderRadius: 10,
     padding: 10,
     backgroundColor: "#fff",
+    minHeight: 44,
+  },
+  categorySelector: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 8,
+  },
+  categoryOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    backgroundColor: "#fff",
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  categoryOptionSelected: {
+    backgroundColor: "#2F80ED",
+    borderColor: "#2F80ED",
+  },
+  categoryOptionText: {
+    color: "#444",
+    fontSize: 12,
+  },
+  categoryOptionTextSelected: {
+    color: "#fff",
+    fontSize: 12,
+  },
+  searchResultCard: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+  },
+  searchResultText: {
+    fontWeight: "700",
+    color: "#111",
+  },
+  imagePickerBtn: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#2F80ED",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imagePickerBtnText: {
+    color: "#2F80ED",
+    fontWeight: "700",
+  },
+  previewImage: {
+    width: "100%",
+    height: 140,
+    borderRadius: 12,
+    marginTop: 10,
+    backgroundColor: "#F4F7FF",
   },
   saveBtn: {
     marginTop: 12,

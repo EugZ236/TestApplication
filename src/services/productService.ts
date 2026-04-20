@@ -39,6 +39,20 @@ const productService = {
       return [];
     }
   },
+  createProduct: async (payload: {
+    name: string;
+    defaultUnit: string;
+    categoryId: number;
+    imageBase64?: string;
+  }): Promise<number | null> => {
+    try {
+      const response = await api.post<number>("api/products", payload);
+      return Number(response.data);
+    } catch (error: unknown) {
+      console.warn("createProduct failed", error);
+      return null;
+    }
+  },
 };
 
 export default productService;

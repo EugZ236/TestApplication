@@ -2,8 +2,10 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/src/services/api";
+import productService from "@/src/services/productService";
 import shoppingListService from "@/src/services/shoppingListService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -36,6 +38,14 @@ export default function CategoryProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [productQty, setProductQty] = useState("1");
   const [productUnit, setProductUnit] = useState("шт");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductUnit, setNewProductUnit] = useState("шт");
+  const [newProductImageBase64, setNewProductImageBase64] = useState("");
+  const [newProductImageUri, setNewProductImageUri] = useState<string | null>(null);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -56,31 +66,99 @@ export default function CategoryProductsPage() {
     })();
   }, []);
 
+  const loadProducts = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("api/products");
+      const data = Array.isArray(res.data) ? res.data : [];
+      const filtered = data.filter((p: any) => {
+        if (typeof p.categoryId !== "undefined" && p.categoryId !== null) {
+          return Number(p.categoryId) === categoryId;
+        }
+        if (p.category?.id) {
+          return Number(p.category.id) === categoryId;
+        }
+        return true;
+      });
+      setProducts(filtered);
+      setError(null);
+    } catch (e) {
+      console.error(e);
+      setError("Не вдалося завантажити продукти");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await api.get("api/products");
-        const data = Array.isArray(res.data) ? res.data : [];
-        const filtered = data.filter((p: any) => {
-          if (typeof p.categoryId !== "undefined" && p.categoryId !== null) {
-            return Number(p.categoryId) === categoryId;
-          }
-          if (p.category?.id) {
-            return Number(p.category.id) === categoryId;
-          }
-          return true;
-        });
-        setProducts(filtered);
-        setError(null);
-      } catch (e) {
-        console.error(e);
-        setError("Не вдалося завантажити продукти");
-      } finally {
-        setLoading(false);
-      }
-    })();
+    loadProducts();
   }, [categoryId]);
+
+  const handleCreateProduct = async () => {
+    const name = newProductName.trim();
+    if (!name) {
+      setCreateError("Введіть назву продукту");
+      return;
+    }
+
+    setCreateLoading(true);
+    setCreateError(null);
+    setCreateSuccess(null);
+
+    const createdId = await productService.createProduct({
+      name,
+      defaultUnit: newProductUnit.trim() || "шт",
+      categoryId,
+      imageBase64: newProductImageBase64.trim() || undefined,
+    });
+
+    setCreateLoading(false);
+
+    if (createdId != null) {
+      setCreateSuccess("Продукт успішно створено");
+      setShowCreateModal(false);
+      setNewProductName("");
+      setNewProductUnit("шт");
+      setNewProductImageBase64("");
+      setNewProductImageUri(null);
+      loadProducts();
+    } else {
+      setCreateError("Не вдалося створити продукт");
+    }
+  };
+
+  const handlePickProductImage = async () => {
+    setCreateError(null);
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setCreateError("Потрібен доступ до галереї для вибору картинки");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    const selected = result.assets?.[0];
+    if (!selected?.base64) {
+      setCreateError("Не вдалося прочитати обране зображення");
+      return;
+    }
+
+    const mimeType = selected.mimeType || "image/jpeg";
+    const photoBase64 = `data:${mimeType};base64,${selected.base64}`;
+
+    setNewProductImageBase64(photoBase64);
+    setNewProductImageUri(selected.uri ?? photoBase64);
+  };
 
   const addProductToShopping = async (
     product: any,
@@ -226,13 +304,83 @@ export default function CategoryProductsPage() {
       <View style={styles.bottom}>
         <TouchableOpacity
           style={styles.addBtn}
-          onPress={() => router.push("/shopping-list")}
+          onPress={() => setShowCreateModal(true)}
         >
           <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
             + Додати свій продукт
           </ThemedText>
         </TouchableOpacity>
       </View>
+
+      {showCreateModal ? (
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                <Text style={{ fontSize: 18 }}>←</Text>
+              </TouchableOpacity>
+              <ThemedText type="title" style={styles.modalTitle}>
+                Новий продукт
+              </ThemedText>
+            </View>
+            <View style={{ marginTop: 14 }}>
+              <ThemedText style={styles.formLabel}>Назва</ThemedText>
+              <TextInput
+                style={styles.modalInput}
+                value={newProductName}
+                onChangeText={setNewProductName}
+                placeholder="Введіть назву"
+              />
+            </View>
+            <View style={{ marginTop: 12 }}>
+              <ThemedText style={styles.formLabel}>Одиниця</ThemedText>
+              <TextInput
+                style={styles.modalInput}
+                value={newProductUnit}
+                onChangeText={setNewProductUnit}
+                placeholder="шт, г, мл"
+              />
+            </View>
+            <View style={{ marginTop: 12 }}>
+              <ThemedText style={styles.formLabel}>Картинка</ThemedText>
+              <TouchableOpacity
+                style={styles.imagePickerBtn}
+                onPress={handlePickProductImage}
+              >
+                <ThemedText style={styles.imagePickerBtnText}>
+                  Обрати з галереї
+                </ThemedText>
+              </TouchableOpacity>
+              {newProductImageUri ? (
+                <Image
+                  source={{ uri: newProductImageUri }}
+                  style={styles.previewImage}
+                  resizeMode="cover"
+                />
+              ) : null}
+            </View>
+            {createError ? (
+              <ThemedText style={{ color: "#d00", marginTop: 10 }}>
+                {createError}
+              </ThemedText>
+            ) : null}
+            {createSuccess ? (
+              <ThemedText style={{ color: "#148A08", marginTop: 10 }}>
+                {createSuccess}
+              </ThemedText>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.saveBtn, { opacity: createLoading ? 0.7 : 1 }]}
+              onPress={handleCreateProduct}
+              disabled={createLoading}
+            >
+              <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
+                {createLoading ? "Створюємо..." : "Створити продукт"}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       {selectedProduct ? (
         <View style={styles.modalBackdrop}>
@@ -328,7 +476,7 @@ const styles = StyleSheet.create({
     borderColor: "#EEF2F7",
     borderWidth: 1,
   },
-  modalHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  modalHeader: { flexDirection: "row", alignItems: "center" },
   modalTitle: { flex: 1, marginLeft: 4 },
   formLabel: { color: "#444", fontSize: 12 },
   qtyInput: {
@@ -338,6 +486,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 10,
     backgroundColor: "#fff",
+  },
+  modalInput: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: "#fff",
+    minHeight: 44,
   },
   columnWrapper: {
     justifyContent: "space-between",
@@ -414,8 +571,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
+  },  imagePickerBtn: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#2F80ED",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  saveBtn: {
+  imagePickerBtnText: {
+    color: "#2F80ED",
+    fontWeight: "700",
+  },
+  previewImage: {
+    width: "100%",
+    height: 140,
+    borderRadius: 12,
+    marginTop: 10,
+    backgroundColor: "#F4F7FF",
+  },  saveBtn: {
     marginTop: 12,
     backgroundColor: "#2F80ED",
     borderRadius: 10,
