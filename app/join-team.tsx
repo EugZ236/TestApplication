@@ -103,12 +103,7 @@ export default function JoinTeamPage() {
 
       <TouchableOpacity
         style={[styles.ghostButton, { marginTop: 16 }]}
-        onPress={() =>
-          showToast.info(
-            "Інфо",
-            "Функція сканування QR-коду буде доступна в наступних оновленнях.",
-          )
-        }
+        onPress={() => router.push("/qr-scan")}
         disabled={isLoading}
       >
         <Text style={styles.ghostButtonText}>Приєднатися за QR</Text>

@@ -2,6 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useTeamStore } from "@/src/store/useTeamStore";
+import { buildTeamInviteQrUri } from "@/utils/teamInviteQr";
 import { showToast } from "@/utils/toast";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -10,18 +11,18 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    RefreshControl,
-    Share,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  RefreshControl,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const getAvatarColor = (name: string) => {
@@ -50,6 +51,7 @@ export default function TeamsScreen() {
   const [infoVisible, setInfoVisible] = useState(false);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
+  const [fabMenuVisible, setFabMenuVisible] = useState(false);
 
   const copyInviteCode = async (code: string) => {
     if (!code) return;
@@ -121,6 +123,17 @@ export default function TeamsScreen() {
         },
       ],
     );
+  }
+
+  async function openCreateTeamFromFab() {
+    setFabMenuVisible(false);
+    await AsyncStorage.setItem("create_context", "fab");
+    router.push("/create-team");
+  }
+
+  function openJoinByQrFromFab() {
+    setFabMenuVisible(false);
+    router.push("/qr-scan");
   }
 
   const filtered = teams.filter((t) =>
@@ -226,13 +239,54 @@ export default function TeamsScreen() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={async () => {
-          await AsyncStorage.setItem("create_context", "fab");
-          router.push("/create-team");
-        }}
+        onPress={() => setFabMenuVisible(true)}
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
+
+      <Modal
+        visible={fabMenuVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setFabMenuVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.fabMenuBackdrop}
+          activeOpacity={1}
+          onPress={() => setFabMenuVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.fabMenuCard}
+            onPress={() => {}}
+          >
+            <Text style={styles.fabMenuTitle}>Дії з командою</Text>
+
+            <TouchableOpacity
+              style={styles.fabMenuAction}
+              onPress={openCreateTeamFromFab}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
+              <Text style={styles.fabMenuActionText}>Створити команду</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.fabMenuAction}
+              onPress={openJoinByQrFromFab}
+            >
+              <Ionicons name="qr-code-outline" size={20} color="#007AFF" />
+              <Text style={styles.fabMenuActionText}>Приєднатись за QR</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.fabMenuCancel}
+              onPress={() => setFabMenuVisible(false)}
+            >
+              <Text style={styles.fabMenuCancelText}>Скасувати</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <Modal
         visible={menuVisible}
@@ -355,19 +409,19 @@ export default function TeamsScreen() {
               <Text style={styles.infoValue}>{selectedTeam?.inviteCode}</Text>
             </View>
 
-            {/* QR for invite link */}
+            {/* QR for invite code */}
             {selectedTeam
               ? (() => {
-                  const code =
-                    selectedTeam.inviteCode ?? String(selectedTeam.id ?? "");
-                  const link = `https://rilking1.github.io/smartmeal-link/?code=${code}`;
+                  const inviteCode = String(
+                    selectedTeam.inviteCode ?? "",
+                  ).trim();
+                  if (!inviteCode) return null;
+
                   return (
                     <View style={{ marginTop: 18, alignItems: "center" }}>
                       <Image
                         source={{
-                          uri: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-                            link,
-                          )}`,
+                          uri: buildTeamInviteQrUri(inviteCode, 220),
                         }}
                         style={{ width: 160, height: 160, borderRadius: 8 }}
                       />
@@ -562,4 +616,44 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   fabText: { color: "#fff", fontSize: 28 },
+  fabMenuBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end",
+    padding: 16,
+  },
+  fabMenuCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 8,
+  },
+  fabMenuTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#333",
+    marginBottom: 8,
+    paddingHorizontal: 6,
+  },
+  fabMenuAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  fabMenuActionText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111",
+  },
+  fabMenuCancel: {
+    marginTop: 6,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  fabMenuCancelText: { color: "#007AFF", fontWeight: "700" },
 });
