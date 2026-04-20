@@ -4,10 +4,12 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { useAuth } from "@/context/AuthContext";
+import { useI18n } from "@/context/LanguageContext";
 
 export default function LogoutPage() {
   const router = useRouter();
   const { logout } = useAuth();
+  const { t } = useI18n();
 
   const handleLogout = async () => {
     await logout();
@@ -23,7 +25,7 @@ export default function LogoutPage() {
         >
           <Ionicons name="arrow-back" size={22} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Вихід</Text>
+        <Text style={styles.headerTitle}>{t("logout.title")}</Text>
         <View style={styles.headerBtn} />
       </View>
 
@@ -31,20 +33,18 @@ export default function LogoutPage() {
         <View style={styles.iconCircle}>
           <Ionicons name="log-out-outline" size={28} color="#DC2626" />
         </View>
-        <Text style={styles.title}>Вийти з профілю?</Text>
-        <Text style={styles.subtitle}>
-          Ви втратите доступ до команд, доки не ввійдете знову.
-        </Text>
+        <Text style={styles.title}>{t("logout.question")}</Text>
+        <Text style={styles.subtitle}>{t("logout.subtitle")}</Text>
 
         <TouchableOpacity style={styles.primaryButton} onPress={handleLogout}>
-          <Text style={styles.primaryButtonText}>Вийти</Text>
+          <Text style={styles.primaryButtonText}>{t("logout.confirm")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.secondaryButton}
           onPress={() => router.back()}
         >
-          <Text style={styles.secondaryButtonText}>Скасувати</Text>
+          <Text style={styles.secondaryButtonText}>{t("logout.cancel")}</Text>
         </TouchableOpacity>
       </View>
     </View>

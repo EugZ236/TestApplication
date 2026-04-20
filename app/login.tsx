@@ -2,6 +2,7 @@ import { PasswordInput } from "@/components/password-input";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import { useI18n } from "@/context/LanguageContext";
 import { showToast } from "@/utils/toast";
 import { isValidEmail, validatePassword } from "@/utils/validation";
 import { Image } from "expo-image";
@@ -29,6 +30,7 @@ export default function LoginPage() {
   const fieldYRef = useRef({ email: 0, password: 0 });
   const router = useRouter();
   const { login } = useAuth();
+  const { t } = useI18n();
 
   const scrollToField = (y: number) => {
     scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
@@ -38,28 +40,31 @@ export default function LoginPage() {
     setEmailError("");
     setPasswordError("");
     if (!email || !password) {
-      showToast.error("Error", "Please fill both email and password");
+      showToast.error(
+        t("login.toastMissingFieldsTitle"),
+        t("login.toastMissingFieldsText"),
+      );
       return;
     }
     if (!isValidEmail(email)) {
-      setEmailError("Please enter a valid email address");
+      setEmailError(t("login.invalidEmail"));
       return;
     }
     const pwdValidation = validatePassword(password);
     if (!pwdValidation.valid) {
-      setPasswordError(pwdValidation.message || "Invalid password");
+      setPasswordError(pwdValidation.message || t("login.invalidPassword"));
       return;
     }
     setIsLoading(true);
     try {
       await login(email, password);
-      showToast.success("Success", "Welcome back! 😊");
+      showToast.success(t("login.loginSuccessTitle"), t("login.loginSuccessText"));
       router.replace("/(tabs)");
     } catch (error: any) {
-      const msg = error.response?.data || "Invalid email or password";
+      const msg = error.response?.data || t("login.loginInvalidCredentials");
       showToast.error(
-        "Login Failed",
-        typeof msg === "string" ? msg : "Please check your credentials",
+        t("login.loginFailedTitle"),
+        typeof msg === "string" ? msg : t("login.loginFailedDefault"),
       );
     } finally {
       setIsLoading(false);
@@ -87,7 +92,7 @@ export default function LoginPage() {
           </TouchableOpacity>
 
           <View style={styles.content}>
-            <ThemedText type="title">Welcome!</ThemedText>
+            <ThemedText type="title">{t("login.title")}</ThemedText>
 
             <View style={styles.form}>
               <View
@@ -97,7 +102,7 @@ export default function LoginPage() {
               >
                 <TextInput
                   style={styles.input}
-                  placeholder="Email Address"
+                  placeholder={t("login.emailPlaceholder")}
                   placeholderTextColor="#888"
                   keyboardType="email-address"
                   value={email}
@@ -115,7 +120,7 @@ export default function LoginPage() {
                 }}
               >
                 <PasswordInput
-                  placeholder="Password"
+                  placeholder={t("login.passwordPlaceholder")}
                   placeholderTextColor="#888"
                   style={styles.input}
                   value={password}
@@ -133,12 +138,12 @@ export default function LoginPage() {
               style={{ alignSelf: "flex-start", marginBottom: 8 }}
               onPress={() => {
                 showToast.info(
-                  "Coming Soon",
-                  "Password recovery is under development 🛠️",
+                  t("login.forgotSoonTitle"),
+                  t("login.forgotSoonText"),
                 );
               }}
             >
-              <Text style={styles.forgotText}>Forgot password?</Text>
+              <Text style={styles.forgotText}>{t("login.forgotPassword")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -152,7 +157,7 @@ export default function LoginPage() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.primaryButtonText}>Login</Text>
+                <Text style={styles.primaryButtonText}>{t("login.submit")}</Text>
               )}
             </TouchableOpacity>
 
@@ -160,13 +165,13 @@ export default function LoginPage() {
               style={styles.registerRow}
               onPress={() => router.push("/register")}
             >
-              <Text style={styles.notMember}>Not a member? </Text>
-              <Text style={styles.registerLink}>Register now</Text>
+              <Text style={styles.notMember}>{`${t("login.notMember")} `}</Text>
+              <Text style={styles.registerLink}>{t("login.registerNow")}</Text>
             </TouchableOpacity>
 
             <View style={styles.separator} />
 
-            <Text style={styles.orText}>Or continue with</Text>
+            <Text style={styles.orText}>{t("login.orContinueWith")}</Text>
 
             <View style={styles.socialRow}>
               <TouchableOpacity

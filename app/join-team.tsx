@@ -1,5 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useI18n } from "@/context/LanguageContext";
 import notificationService from "@/src/services/notificationService";
 import teamService from "@/src/services/teamService";
 import { showToast } from "@/utils/toast";
@@ -18,6 +19,7 @@ export default function JoinTeamPage() {
   const { code: urlCode } = useLocalSearchParams();
 
   const router = useRouter();
+  const { t } = useI18n();
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -30,7 +32,7 @@ export default function JoinTeamPage() {
     const trimmedCode = code.trim();
 
     if (!trimmedCode) {
-      showToast.error("Помилка", "Будь ласка, введіть код інвайту");
+      showToast.error(t("joinTeam.missingCodeTitle"), t("joinTeam.missingCodeText"));
       return;
     }
 
@@ -39,27 +41,28 @@ export default function JoinTeamPage() {
       const result = await teamService.joinTeam(trimmedCode);
 
       notificationService.sendGroupNotification({
-        title: "Новий учасник",
-        body: `Користувач приєднався до команди "${result.teamName}"`,
+        title: t("joinTeam.newMemberTitle"),
+        body: t("joinTeam.newMemberBody", { teamName: result.teamName }),
         teamId: result.teamId.toString(),
       });
 
-      Alert.alert("Успіх", `Ви приєдналися до команди "${result.teamName}"`, [
-        { text: "Чудово", onPress: () => router.replace("/(tabs)") },
-      ]);
+      Alert.alert(
+        t("joinTeam.successTitle"),
+        t("joinTeam.successText", { teamName: result.teamName }),
+        [{ text: t("joinTeam.successAction"), onPress: () => router.replace("/(tabs)") }],
+      );
     } catch (e: any) {
       console.error(e);
 
       const status = e.response?.status;
-      let errorMessage = "Щось пішло не так. Спробуйте пізніше.";
+      let errorMessage = t("joinTeam.genericError");
 
       if (status === 404) {
-        errorMessage =
-          "Команду з таким кодом не знайдено. Перевірте правильність вводу.";
+        errorMessage = t("joinTeam.notFoundError");
       } else if (status === 409) {
-        errorMessage = "Ви вже є учасником цієї команди.";
+        errorMessage = t("joinTeam.conflictError");
       } else if (status === 400) {
-        errorMessage = "Невірний код інвайту.";
+        errorMessage = t("joinTeam.badRequestError");
       } else if (e.response?.data) {
         errorMessage =
           typeof e.response.data === "string"
@@ -67,7 +70,7 @@ export default function JoinTeamPage() {
             : e.response.data.message;
       }
 
-      showToast.error("Помилка", errorMessage);
+      showToast.error(t("common.error"), errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -75,14 +78,14 @@ export default function JoinTeamPage() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">Приєднатися за кодом</ThemedText>
+      <ThemedText type="title">{t("joinTeam.title")}</ThemedText>
 
-      <Text style={styles.instruction}>Введіть код інвайту нижче</Text>
+      <Text style={styles.instruction}>{t("joinTeam.instruction")}</Text>
 
       <TextInput
         value={code}
         onChangeText={setCode}
-        placeholder="Наприклад: IVQKUI0M"
+        placeholder={t("joinTeam.placeholder")}
         style={styles.input}
         autoCapitalize="characters"
         autoCorrect={false}
@@ -97,7 +100,7 @@ export default function JoinTeamPage() {
         {isLoading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.primaryButtonText}>Приєднатися</Text>
+          <Text style={styles.primaryButtonText}>{t("joinTeam.joinButton")}</Text>
         )}
       </TouchableOpacity>
 
@@ -106,7 +109,7 @@ export default function JoinTeamPage() {
         onPress={() => router.push("/qr-scan")}
         disabled={isLoading}
       >
-        <Text style={styles.ghostButtonText}>Приєднатися за QR</Text>
+        <Text style={styles.ghostButtonText}>{t("joinTeam.joinByQrButton")}</Text>
       </TouchableOpacity>
     </ThemedView>
   );

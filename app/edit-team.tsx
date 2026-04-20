@@ -1,10 +1,11 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useI18n } from "@/context/LanguageContext";
 import teamService from "@/src/services/teamService";
 import { showToast } from "@/utils/toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -27,20 +28,20 @@ const getAvatarColor = (name: string) => {
 
 export default function EditTeamPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [id, setId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    fetchTeamData();
-  }, []);
-
-  async function fetchTeamData() {
+  const fetchTeamData = useCallback(async () => {
     try {
       const storedId = await AsyncStorage.getItem("edit_team_id");
       if (!storedId) {
-        showToast.error("Помилка", "ID команди не знайдено");
+        showToast.error(
+          t("editTeam.missingTeamIdTitle"),
+          t("editTeam.missingTeamIdText"),
+        );
 
         router.replace("/(tabs)");
         return;
@@ -53,22 +54,29 @@ export default function EditTeamPage() {
       const team = teams.find((t: any) => t.id === teamId);
 
       if (!team) {
-        showToast.error("Помилка", "Команду не знайдено");
+        showToast.error(
+          t("editTeam.teamNotFoundTitle"),
+          t("editTeam.teamNotFoundText"),
+        );
         router.replace("/(tabs)");
         return;
       }
 
       setName(team.name || "");
-    } catch (e) {
-      showToast.error("Помилка", "Не вдалося завантажити дані");
+    } catch {
+      showToast.error(t("editTeam.loadFailedTitle"), t("editTeam.loadFailedText"));
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [router, t]);
+
+  useEffect(() => {
+    fetchTeamData();
+  }, [fetchTeamData]);
 
   async function saveTeam() {
     if (!name.trim() || !id) {
-      showToast.error("Увага", "Назва команди не може бути порожньою");
+      showToast.error(t("editTeam.emptyNameTitle"), t("editTeam.emptyNameText"));
       return;
     }
 
@@ -77,15 +85,15 @@ export default function EditTeamPage() {
       await teamService.updateTeam(id, name.trim());
       await AsyncStorage.removeItem("edit_team_id");
 
-      Alert.alert("Успіх", "Назву команди змінено", [
-        { text: "OK", onPress: () => router.replace("/(tabs)") },
+      Alert.alert(t("editTeam.saveSuccessTitle"), t("editTeam.saveSuccessText"), [
+        { text: t("common.done"), onPress: () => router.replace("/(tabs)") },
       ]);
     } catch (e: any) {
       const msg =
         e.response?.status === 403
-          ? "Тільки власник може редагувати назву"
-          : "Помилка при збереженні";
-      showToast.error("Помилка", msg);
+          ? t("editTeam.saveFailedNotOwner")
+          : t("editTeam.saveFailedDefault");
+      showToast.error(t("common.error"), msg);
     } finally {
       setIsSaving(false);
     }
@@ -104,24 +112,24 @@ export default function EditTeamPage() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">Edit team</ThemedText>
+      <ThemedText type="title">{t("editTeam.title")}</ThemedText>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Team preview</Text>
+        <Text style={styles.label}>{t("editTeam.previewLabel")}</Text>
         <View style={styles.avatarPlaceholder}>
           <View style={[styles.avatar, { backgroundColor: currentColor }]}>
             <Text style={styles.avatarLetter}>
               {name ? name.charAt(0).toUpperCase() : "?"}
             </Text>
           </View>
-          <Text style={styles.hint}>Колір генерується автоматично</Text>
+          <Text style={styles.hint}>{t("editTeam.autoColorHint")}</Text>
         </View>
 
-        <Text style={styles.label}>Team name</Text>
+        <Text style={styles.label}>{t("editTeam.teamNameLabel")}</Text>
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder="Назва команди"
+          placeholder={t("editTeam.teamNamePlaceholder")}
           style={styles.input}
           maxLength={30}
         />
@@ -135,7 +143,7 @@ export default function EditTeamPage() {
             {isSaving ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.primaryButtonText}>Save Changes</Text>
+              <Text style={styles.primaryButtonText}>{t("editTeam.saveButton")}</Text>
             )}
           </TouchableOpacity>
 
@@ -143,7 +151,7 @@ export default function EditTeamPage() {
             style={styles.ghostButton}
             onPress={() => router.replace("/(tabs)")}
           >
-            <Text style={styles.ghostButtonText}>Cancel</Text>
+            <Text style={styles.ghostButtonText}>{t("editTeam.cancelButton")}</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import { useI18n } from "@/context/LanguageContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -10,6 +11,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 export default function WelcomePage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useI18n();
 
   return (
     <ThemedView style={styles.container}>
@@ -23,43 +25,39 @@ export default function WelcomePage() {
 
       <View style={styles.content}>
         <ThemedText type="title" style={styles.greeting}>
-          {`Привіт${user?.name ? `, ${user.name}` : ""}!`}
+          {t("welcome.hello", { name: user?.name ? `, ${user.name}` : "" })}
         </ThemedText>
 
-        <Text style={styles.subtitle}>Давайте налаштуємо ваш простір.</Text>
+        <Text style={styles.subtitle}>{t("welcome.subtitle")}</Text>
 
         <View style={styles.cardContainer}>
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Створити нову Сім'ю</Text>
-            <Text style={styles.cardDesc}>
-              Створіть приватний простір для вашої родини.
-            </Text>
+            <Text style={styles.cardTitle}>{t("welcome.createFamilyTitle")}</Text>
+            <Text style={styles.cardDesc}>{t("welcome.createFamilyDescription")}</Text>
             <TouchableOpacity
               style={styles.cardButton}
               onPress={async () => {
                 try {
                   await AsyncStorage.setItem("create_context", "post_signup");
-                } catch (e) {
+                } catch {
                   // ignore
                 }
                 router.push("/create-team");
               }}
             >
-              <Text style={styles.cardButtonText}>Створити</Text>
+              <Text style={styles.cardButtonText}>{t("welcome.createAction")}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Приєднатися за кодом</Text>
-            <Text style={styles.cardDesc}>
-              Введіть код сім'ї, щоб приєднатися.
-            </Text>
+            <Text style={styles.cardTitle}>{t("welcome.joinByCodeTitle")}</Text>
+            <Text style={styles.cardDesc}>{t("welcome.joinByCodeDescription")}</Text>
             <TouchableOpacity
               style={[styles.cardButton, styles.ghostButton]}
               onPress={() => router.push("/join-team")}
             >
               <Text style={[styles.cardButtonText, styles.ghostButtonText]}>
-                Приєднатися
+                {t("welcome.joinAction")}
               </Text>
             </TouchableOpacity>
           </View>
