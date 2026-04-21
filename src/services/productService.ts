@@ -17,6 +17,14 @@ export interface ProductDetailsDto {
   imageBase64?: string | null;
 }
 
+export interface CreateProductRequest {
+  name: string;
+  nameUA: string;
+  defaultUnit: string;
+  categoryId: number;
+  imageBase64?: string | null;
+}
+
 const productService = {
   searchGlobalProducts: async (q: string): Promise<string[]> => {
     if (!q.trim()) return [];
@@ -52,6 +60,15 @@ const productService = {
   getProductById: async (id: number): Promise<ProductDetailsDto> => {
     const response = await api.get<ProductDetailsDto>(`api/Products/${id}`);
     return response.data;
+  },
+
+  createProduct: async (payload: CreateProductRequest): Promise<number> => {
+    const response = await api.post<number>("api/Products", payload);
+    const productId = Number(response.data);
+    if (!Number.isFinite(productId)) {
+      throw new Error("Invalid product id returned by API");
+    }
+    return productId;
   },
 };
 

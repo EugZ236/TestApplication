@@ -1,14 +1,17 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import api from "@/src/services/api";
 import productService from "@/src/services/productService";
 import shoppingListService from "@/src/services/shoppingListService";
 import shoppingListSignalRService from "@/src/services/shoppingListSignalRService";
 import teamService, { TeamMember } from "@/src/services/teamService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -45,6 +48,19 @@ type ShoppingListItem = {
   buyerAvatar?: string | null;
 };
 
+type CategoryOption = {
+  id: number | null;
+  name: string;
+};
+
+const FALLBACK_CATEGORY_OPTIONS: CategoryOption[] = [
+  { id: null, name: "Овочі та фрукти" },
+  { id: null, name: "Молочні продукти" },
+  { id: null, name: "Мʼясо" },
+  { id: null, name: "Риба" },
+  { id: null, name: "Напої" },
+];
+
 export default function ShoppingListPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -56,6 +72,7 @@ export default function ShoppingListPage() {
     number | null
   >(null);
   const [assigneePickerForForm, setAssigneePickerForForm] = useState(false);
+  const [checkboxLoadingIds, setCheckboxLoadingIds] = useState<number[]>([]);
   const [query, setQuery] = useState("");
   const { user: authUser, token } = useAuth();
 
@@ -113,14 +130,18 @@ export default function ShoppingListPage() {
   };
 
   const resetForm = () => {
+    const defaultCategory = categories[0] ?? FALLBACK_CATEGORY_OPTIONS[0];
     setForm({
       name: "",
-      category: categories[0],
+      nameUA: "",
+      category: defaultCategory?.name ?? "",
+      categoryId: defaultCategory?.id ?? null,
       quantity: "1",
       unit: units[0],
       assignedToUserId: "",
-      price: "",
       note: "",
+      imageBase64: "",
+      imagePreviewUri: "",
     });
     setEditingId(null);
   };
@@ -234,6 +255,34 @@ export default function ShoppingListPage() {
     await loadData(Number(team.id));
   };
 
+  const setCheckboxLoading = (itemId: number, isLoading: boolean) => {
+    setCheckboxLoadingIds((prev) => {
+      if (isLoading) {
+        if (prev.includes(itemId)) return prev;
+        return [...prev, itemId];
+      }
+      return prev.filter((id) => id !== itemId);
+    });
+  };
+
+  const handleToggleBought = async (item: ShoppingListItem) => {
+    if (checkboxLoadingIds.includes(item.id)) {
+      return;
+    }
+
+    setCheckboxLoading(item.id, true);
+    try {
+      await updateItemOnServer(item.id, {
+        isBought: !item.isBought,
+      });
+    } catch (error) {
+      console.error("Не вдалося оновити статус покупки", error);
+      Alert.alert("Помилка", "Не вдалося оновити статус покупки");
+    } finally {
+      setCheckboxLoading(item.id, false);
+    }
+  };
+
   const updateAssignee = async (
     itemId: number,
     userId: number | string | null,
@@ -256,16 +305,21 @@ export default function ShoppingListPage() {
   };
 
   const handleEditItem = (item: ShoppingListItem) => {
+    const matchedCategory = categories.find((c) => c.name === item.category);
+    const defaultCategory = categories[0] ?? FALLBACK_CATEGORY_OPTIONS[0];
     setEditingId(item.id);
     setForm({
       name: item.name ?? "",
-      category: item.category || categories[0],
+      nameUA: item.name ?? "",
+      category: item.category || defaultCategory?.name || "",
+      categoryId: matchedCategory?.id ?? null,
       quantity: String(item.quantity ?? 1),
       unit: item.unit || units[0],
       assignedToUserId:
         item.assignedToUserId != null ? String(item.assignedToUserId) : "",
-      price: "",
       note: item.note ?? "",
+      imageBase64: "",
+      imagePreviewUri: "",
     });
     setModalVisible(true);
   };
@@ -367,23 +421,51 @@ export default function ShoppingListPage() {
   // --- modal + form state & persistence handlers
   const [modalVisible, setModalVisible] = React.useState(false);
   const [editingId, setEditingId] = React.useState<number | null>(null);
-  const categories = [
-    "Овочі та фрукти",
-    "Молочні продукти",
-    "Мʼясо",
-    "Риба",
-    "Напої",
-  ];
+  const [categories, setCategories] = React.useState<CategoryOption[]>(
+    FALLBACK_CATEGORY_OPTIONS,
+  );
   const units = ["шт", "кг", "мл"];
   const [Form, setForm] = React.useState({
     name: "",
-    category: categories[0],
+    nameUA: "",
+    category: FALLBACK_CATEGORY_OPTIONS[0].name,
+    categoryId: FALLBACK_CATEGORY_OPTIONS[0].id,
     quantity: "1",
     unit: units[0],
     assignedToUserId: "",
-    price: "",
     note: "",
+    imageBase64: "",
+    imagePreviewUri: "",
   });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await api.get("api/categories");
+        const data = Array.isArray(response.data) ? response.data : [];
+        const mapped = data
+          .filter(
+            (category: any) =>
+              category &&
+              category.id != null &&
+              typeof category.name === "string" &&
+              category.name.trim().length > 0,
+          )
+          .map(
+            (category: any): CategoryOption => ({
+              id: Number(category.id),
+              name: String(category.name).trim(),
+            }),
+          );
+
+        if (mapped.length > 0) {
+          setCategories(mapped);
+        }
+      } catch (error) {
+        console.warn("Не вдалося завантажити категорії", error);
+      }
+    })();
+  }, []);
 
   function openCatalog() {
     router.push("/add-product");
@@ -395,10 +477,22 @@ export default function ShoppingListPage() {
   }
 
   async function saveItem() {
-    if (!Form.name.trim()) {
+    const englishName = Form.name.trim();
+    const ukrainianName = Form.nameUA.trim();
+    if (editingId == null && (!englishName || !ukrainianName)) {
+      Alert.alert(
+        "Помилка",
+        "Вкажіть назву товару англійською (name) і українською (nameUA)",
+      );
+      return;
+    }
+
+    const shoppingItemName = ukrainianName || englishName;
+    if (!shoppingItemName) {
       Alert.alert("Помилка", "Вкажіть назву товару");
       return;
     }
+
     if (!team?.id) {
       Alert.alert("Помилка", "Не вдалося визначити команду");
       return;
@@ -407,9 +501,13 @@ export default function ShoppingListPage() {
     const selectedAssignee =
       Form.assignedToUserId ||
       (authUser?.id != null ? String(authUser.id) : null);
+    const resolvedCategoryId =
+      Form.categoryId ??
+      categories.find((category) => category.name === Form.category)?.id ??
+      null;
     const payload = {
       teamId: Number(team.id),
-      name: Form.name.trim(),
+      name: shoppingItemName,
       quantity: Number(Form.quantity) || 1,
       unit: Form.unit,
       category: Form.category,
@@ -421,10 +519,53 @@ export default function ShoppingListPage() {
       if (editingId != null) {
         await shoppingListService.updateItem(editingId, payload);
       } else {
-        const createdId = await shoppingListService.createItem(payload);
+        let createdProductId: number | null = null;
+
+        if (Form.imageBase64) {
+          if (resolvedCategoryId == null) {
+            Alert.alert(
+              "Помилка",
+              "Щоб відправити фото, оберіть категорію із завантаженого списку.",
+            );
+            return;
+          }
+
+          try {
+            createdProductId = await productService.createProduct({
+              name: englishName || shoppingItemName,
+              nameUA: ukrainianName || shoppingItemName,
+              defaultUnit: Form.unit,
+              categoryId: resolvedCategoryId,
+              imageBase64: Form.imageBase64,
+            });
+          } catch (error: any) {
+            const statusCode = Number(error?.response?.status ?? 0);
+            if (statusCode === 409) {
+              Alert.alert(
+                "Такий продукт вже існує",
+                "Змініть назву або приберіть фото, якщо хочете додати позицію лише в список покупок.",
+              );
+            } else {
+              Alert.alert(
+                "Помилка",
+                "Не вдалося відправити фото продукту. Спробуйте ще раз.",
+              );
+            }
+            return;
+          }
+        }
+
+        const createPayload =
+          createdProductId != null
+            ? { ...payload, productId: createdProductId }
+            : payload;
+        const createdId = await shoppingListService.createItem(createPayload);
         if (payload.assignedToUserId != null) {
           await shoppingListService.updateItem(createdId, {
             ...payload,
+            ...(createdProductId != null
+              ? { productId: createdProductId }
+              : {}),
             isBought: false,
           });
         }
@@ -513,6 +654,67 @@ export default function ShoppingListPage() {
     setAssigneePickerForForm(true);
     setAssigneePickerItemId(null);
     setAssigneePickerVisible(true);
+  }
+
+  function selectCategory(category: CategoryOption) {
+    setForm((prev) => ({
+      ...prev,
+      category: category.name,
+      categoryId: category.id,
+    }));
+  }
+
+  function isSelectedCategory(category: CategoryOption) {
+    if (Form.categoryId != null && category.id != null) {
+      return Form.categoryId === category.id;
+    }
+    return Form.category === category.name;
+  }
+
+  async function pickProductPhoto() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        "Доступ заборонено",
+        "Дозвольте доступ до галереї, щоб додати фото продукту.",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+      base64: true,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    const selected = result.assets?.[0];
+    if (!selected?.base64) {
+      Alert.alert("Помилка", "Не вдалося обробити фото.");
+      return;
+    }
+
+    const mimeType = selected.mimeType || "image/jpeg";
+    const previewUri =
+      selected.uri || `data:${mimeType};base64,${selected.base64}`;
+
+    setForm((prev) => ({
+      ...prev,
+      imageBase64: selected.base64,
+      imagePreviewUri: previewUri,
+    }));
+  }
+
+  function clearProductPhoto() {
+    setForm((prev) => ({
+      ...prev,
+      imageBase64: "",
+      imagePreviewUri: "",
+    }));
   }
 
   function renderEmpty() {
@@ -606,6 +808,7 @@ export default function ShoppingListPage() {
                   .charAt(0)
                   .toUpperCase();
                 const productImageSource = normalizeImageUri(item.productImage);
+                const checkboxLoading = checkboxLoadingIds.includes(item.id);
                 return (
                   <TouchableOpacity
                     key={String(item.id ?? idx)}
@@ -670,13 +873,17 @@ export default function ShoppingListPage() {
                             styles.checkboxNew,
                             item.isBought ? styles.checked : null,
                           ]}
+                          disabled={checkboxLoading}
                           onPress={() => {
-                            void updateItemOnServer(item.id, {
-                              isBought: !item.isBought,
-                            });
+                            void handleToggleBought(item);
                           }}
                         >
-                          {item.isBought ? (
+                          {checkboxLoading ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={item.isBought ? "#fff" : "#2F80ED"}
+                            />
+                          ) : item.isBought ? (
                             <Text style={{ color: "#fff" }}>✓</Text>
                           ) : null}
                         </TouchableOpacity>
@@ -710,11 +917,6 @@ export default function ShoppingListPage() {
                         </TouchableOpacity>
                         <Text style={styles.unitText}>{item.unit ?? "шт"}</Text>
                       </View>
-                      {item.price != null ? (
-                        <ThemedText style={styles.priceText}>
-                          {Number(item.price).toFixed(2)} грн
-                        </ThemedText>
-                      ) : null}
                     </View>
                   </TouchableOpacity>
                 );
@@ -749,6 +951,7 @@ export default function ShoppingListPage() {
         onRequestClose={() => setModalVisible(false)}
       >
         <KeyboardAvoidingView
+          enabled={Platform.OS === "ios"}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1, justifyContent: "flex-end" }}
         >
@@ -761,170 +964,223 @@ export default function ShoppingListPage() {
               style={styles.sheet}
             >
               <View style={styles.sheetHandle} />
-              <View style={styles.sheetHeader}>
-                <ThemedText type="title">
-                  {Form.name || "Нова позиція"}
-                </ThemedText>
-                <Pressable onPress={confirmDelete} style={styles.trashBtn}>
-                  <Text style={{ color: "#FF6B6B", fontSize: 18 }}>🗑️</Text>
-                </Pressable>
-              </View>
-
-              {/* title input (was missing) */}
-              <TextInput
-                placeholder="Назва товару"
-                value={Form.name}
-                onChangeText={(v) => setFormField("name", v)}
-                style={styles.titleInput}
-                autoFocus={true}
-                returnKeyType="next"
-              />
-
-              {/* categories toggle */}
-              <View
-                style={{
-                  marginTop: 12,
-                  flexDirection: "row",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
+              <ScrollView
+                style={styles.sheetScroll}
+                contentContainerStyle={[
+                  styles.sheetScrollContent,
+                  { paddingBottom: Math.max(34, insets.bottom + 16) },
+                ]}
+                keyboardShouldPersistTaps="always"
+                keyboardDismissMode={
+                  Platform.OS === "ios" ? "interactive" : "on-drag"
+                }
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
               >
-                {categories.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    onPress={() => setFormField("category", c)}
-                    style={[
-                      {
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                        borderRadius: 10,
-                        borderWidth: 1,
-                      },
-                      Form.category === c
-                        ? { backgroundColor: "#F1F6FF", borderColor: "#2F80ED" }
-                        : { backgroundColor: "#fff", borderColor: "#EEF2F7" },
-                    ]}
-                  >
-                    <ThemedText
-                      style={
-                        Form.category === c
-                          ? { color: "#2F80ED", fontWeight: "700" }
-                          : { color: "#666" }
-                      }
-                    >
-                      {c}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                <View style={styles.sheetHeader}>
+                  <ThemedText type="title">
+                    {Form.nameUA || Form.name || "Нова позиція"}
+                  </ThemedText>
+                  <Pressable onPress={confirmDelete} style={styles.trashBtn}>
+                    <Text style={{ color: "#FF6B6B", fontSize: 18 }}>🗑️</Text>
+                  </Pressable>
+                </View>
 
-              <View style={styles.formRow}>
-                <ThemedText style={styles.formLabel}>КІЛЬКІСТЬ</ThemedText>
-                <View style={styles.qtyRow}>
-                  <TouchableOpacity style={styles.qtyBtn} onPress={decQty}>
-                    <ThemedText>-</ThemedText>
-                  </TouchableOpacity>
-                  <TextInput
-                    style={styles.qtyInput}
-                    value={Form.quantity}
-                    onChangeText={(v) => setFormField("quantity", v)}
-                    keyboardType="numeric"
-                  />
-                  <TouchableOpacity style={styles.qtyBtn} onPress={incQty}>
-                    <ThemedText>+</ThemedText>
-                  </TouchableOpacity>
+                <TextInput
+                  placeholder="Назва товару англійською (name)"
+                  value={Form.name}
+                  onChangeText={(v) => setFormField("name", v)}
+                  style={styles.titleInput}
+                  autoFocus={true}
+                  returnKeyType="next"
+                />
 
-                  {/* unit toggle */}
-                  <View style={{ flexDirection: "row", marginLeft: 8, gap: 8 }}>
-                    {units.map((u) => (
+                <TextInput
+                  placeholder="Назва товару українською (nameUA)"
+                  value={Form.nameUA}
+                  onChangeText={(v) => setFormField("nameUA", v)}
+                  style={styles.titleInput}
+                  returnKeyType="next"
+                />
+
+                <View
+                  style={{
+                    marginTop: 12,
+                    flexDirection: "row",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {categories.map((category) => {
+                    const selected = isSelectedCategory(category);
+                    return (
                       <TouchableOpacity
-                        key={u}
-                        onPress={() => setFormField("unit", u)}
+                        key={`${category.id ?? "category"}-${category.name}`}
+                        onPress={() => selectCategory(category)}
                         style={[
                           {
-                            paddingHorizontal: 10,
+                            paddingHorizontal: 12,
                             paddingVertical: 8,
                             borderRadius: 10,
+                            borderWidth: 1,
                           },
-                          Form.unit === u
+                          selected
                             ? {
                                 backgroundColor: "#F1F6FF",
-                                borderWidth: 1,
-                                borderColor: "#E6F0FF",
+                                borderColor: "#2F80ED",
                               }
-                            : { backgroundColor: "#F6F8FB" },
+                            : {
+                                backgroundColor: "#fff",
+                                borderColor: "#EEF2F7",
+                              },
                         ]}
                       >
                         <ThemedText
                           style={
-                            Form.unit === u
+                            selected
                               ? { color: "#2F80ED", fontWeight: "700" }
                               : { color: "#666" }
                           }
                         >
-                          {u}
+                          {category.name}
                         </ThemedText>
                       </TouchableOpacity>
-                    ))}
+                    );
+                  })}
+                </View>
+
+                <View style={styles.formRow}>
+                  <ThemedText style={styles.formLabel}>КІЛЬКІСТЬ</ThemedText>
+                  <View style={styles.qtyRow}>
+                    <TouchableOpacity style={styles.qtyBtn} onPress={decQty}>
+                      <ThemedText>-</ThemedText>
+                    </TouchableOpacity>
+                    <TextInput
+                      style={styles.qtyInput}
+                      value={Form.quantity}
+                      onChangeText={(v) => setFormField("quantity", v)}
+                      keyboardType="numeric"
+                    />
+                    <TouchableOpacity style={styles.qtyBtn} onPress={incQty}>
+                      <ThemedText>+</ThemedText>
+                    </TouchableOpacity>
+
+                    <View
+                      style={{ flexDirection: "row", marginLeft: 8, gap: 8 }}
+                    >
+                      {units.map((u) => (
+                        <TouchableOpacity
+                          key={u}
+                          onPress={() => setFormField("unit", u)}
+                          style={[
+                            {
+                              paddingHorizontal: 10,
+                              paddingVertical: 8,
+                              borderRadius: 10,
+                            },
+                            Form.unit === u
+                              ? {
+                                  backgroundColor: "#F1F6FF",
+                                  borderWidth: 1,
+                                  borderColor: "#E6F0FF",
+                                }
+                              : { backgroundColor: "#F6F8FB" },
+                          ]}
+                        >
+                          <ThemedText
+                            style={
+                              Form.unit === u
+                                ? { color: "#2F80ED", fontWeight: "700" }
+                                : { color: "#666" }
+                            }
+                          >
+                            {u}
+                          </ThemedText>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              <View style={styles.formRowTwo}>
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.formLabel}>ХТО КУПИТЬ</ThemedText>
-                  <TouchableOpacity
-                    style={styles.selectInput}
-                    onPress={openAssigneePickerForForm}
-                  >
-                    <ThemedText>
-                      {Form.assignedToUserId
-                        ? authUser?.id != null &&
-                          String(Form.assignedToUserId) === String(authUser.id)
-                          ? "Я"
-                          : getParticipantFullName(
-                              participants.find(
-                                (p) =>
-                                  String(p.id) ===
-                                  String(Form.assignedToUserId),
-                              ) ?? ({ firstName: "Учасник" } as TeamMember),
-                            )
-                        : "Не призначено"}
-                    </ThemedText>
-                  </TouchableOpacity>
+                <View style={styles.formRowTwo}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={styles.formLabel}>ХТО КУПИТЬ</ThemedText>
+                    <TouchableOpacity
+                      style={styles.selectInput}
+                      onPress={openAssigneePickerForForm}
+                    >
+                      <ThemedText>
+                        {Form.assignedToUserId
+                          ? authUser?.id != null &&
+                            String(Form.assignedToUserId) ===
+                              String(authUser.id)
+                            ? "Я"
+                            : getParticipantFullName(
+                                participants.find(
+                                  (p) =>
+                                    String(p.id) ===
+                                    String(Form.assignedToUserId),
+                                ) ?? ({ firstName: "Учасник" } as TeamMember),
+                              )
+                          : "Не призначено"}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
-                <View style={{ width: 12 }} />
-
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.formLabel}>
-                    ЦІНА (ОРІЄНТ.)
-                  </ThemedText>
-                  <TextInput
-                    style={styles.selectInput}
-                    value={Form.price}
-                    onChangeText={(v) => setFormField("price", v)}
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
-
-              <ThemedText style={[styles.formLabel, { marginTop: 12 }]}>
-                КОМЕНТАР
-              </ThemedText>
-              <TextInput
-                style={styles.commentInput}
-                placeholder="Напр: Тільки свіжу, не миту..."
-                value={Form.note}
-                onChangeText={(v) => setFormField("note", v)}
-                multiline
-              />
-
-              <TouchableOpacity style={styles.saveBtn} onPress={saveItem}>
-                <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-                  {editingId == null ? "Додати продукт" : "Зберегти зміни"}
+                <ThemedText style={[styles.formLabel, { marginTop: 12 }]}>
+                  КОМЕНТАР
                 </ThemedText>
-              </TouchableOpacity>
+                <TextInput
+                  style={styles.commentInput}
+                  placeholder="Напр: Тільки свіжу, не миту..."
+                  value={Form.note}
+                  onChangeText={(v) => setFormField("note", v)}
+                  multiline
+                />
+
+                {editingId == null ? (
+                  <View style={styles.formRow}>
+                    <ThemedText style={styles.formLabel}>
+                      ФОТО ПРОДУКТУ (ОПЦІЙНО)
+                    </ThemedText>
+                    <View style={styles.photoActionsRow}>
+                      <TouchableOpacity
+                        style={styles.photoSelectButton}
+                        onPress={pickProductPhoto}
+                      >
+                        <ThemedText style={styles.photoSelectButtonText}>
+                          {Form.imageBase64 ? "Змінити фото" : "Додати фото"}
+                        </ThemedText>
+                      </TouchableOpacity>
+                      {Form.imageBase64 ? (
+                        <TouchableOpacity
+                          style={styles.photoRemoveButton}
+                          onPress={clearProductPhoto}
+                        >
+                          <ThemedText style={styles.photoRemoveButtonText}>
+                            Прибрати
+                          </ThemedText>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+
+                    {Form.imagePreviewUri ? (
+                      <Image
+                        source={{ uri: Form.imagePreviewUri }}
+                        style={styles.productPreviewImage}
+                        resizeMode="cover"
+                      />
+                    ) : null}
+                  </View>
+                ) : null}
+
+                <TouchableOpacity style={styles.saveBtn} onPress={saveItem}>
+                  <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
+                    {editingId == null ? "Додати продукт" : "Зберегти зміни"}
+                  </ThemedText>
+                </TouchableOpacity>
+              </ScrollView>
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
@@ -1190,11 +1446,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-  priceText: {
-    fontWeight: "700",
-    color: "#111",
-    fontSize: 13,
-  },
   bottomRow: {
     padding: 20,
     borderTopWidth: 1,
@@ -1365,7 +1616,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    padding: 18,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    maxHeight: "92%",
+  },
+  sheetScroll: {
+    flexGrow: 0,
+  },
+  sheetScrollContent: {
     paddingBottom: 34,
   },
   sheetHandle: {
@@ -1445,6 +1703,44 @@ const styles = StyleSheet.create({
     padding: 12,
     textAlignVertical: "top",
     backgroundColor: "#fff",
+  },
+  photoActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  photoSelectButton: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#2F80ED",
+    backgroundColor: "#F4F8FF",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  photoSelectButtonText: {
+    color: "#2F80ED",
+    fontWeight: "700",
+  },
+  photoRemoveButton: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#F3CACA",
+    backgroundColor: "#FFF5F5",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  photoRemoveButtonText: {
+    color: "#C2410C",
+    fontWeight: "600",
+  },
+  productPreviewImage: {
+    marginTop: 10,
+    width: 96,
+    height: 96,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    backgroundColor: "#F4F7FF",
   },
   saveBtn: {
     marginTop: 18,
