@@ -88,9 +88,9 @@ export default function LoginPage() {
         >
           <TouchableOpacity style={styles.headerImage} activeOpacity={0.8}>
             <Image
-              source={require("@/assets/images/login-header.png")}
+              source={require("@/app/Images/LOGO.jpg")}
               style={styles.headerImageImage}
-              contentFit="cover"
+              contentFit="contain"
             />
           </TouchableOpacity>
 
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  headerImageImage: { width: "100%", height: "100%" },
+  headerImageImage: { width: 150, height: 150 },
   content: { flex: 1, padding: 20, justifyContent: "flex-start", gap: 12 },
   form: { gap: 12, marginVertical: 8 },
   input: {

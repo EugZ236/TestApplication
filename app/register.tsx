@@ -6,6 +6,7 @@ import { useI18n } from "@/context/LanguageContext";
 import { showToast } from "@/utils/toast";
 import { isValidEmail, validatePassword } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -156,7 +157,11 @@ export default function RegisterPage() {
           showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity style={styles.headerImage} activeOpacity={0.8}>
-            <Ionicons name="image-outline" size={36} color="#9BBCE0" />
+            <Image
+              source={require("@/app/Images/LOGO.jpg")}
+              contentFit="contain"
+              style={{ width: 140, height: 140 }}
+            />
           </TouchableOpacity>
 
           <View style={styles.content}>

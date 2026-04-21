@@ -16,7 +16,7 @@ export default function WelcomePage() {
   return (
     <ThemedView style={styles.container}>
       <Image
-        source={require("@/assets/images/login-header.png")}
+        source={require("@/app/Images/LOGO.jpg")}
         contentFit="cover"
         style={styles.background}
       />

@@ -7,7 +7,8 @@ import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { Image } from "expo-image";
+import { Platform, View } from "react-native";
 import "react-native-reanimated";
 import Toast from "react-native-toast-message";
 
@@ -111,7 +112,11 @@ function RootLayoutContent() {
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <Image
+          source={require("@/app/Images/LOGO.jpg")}
+          contentFit="contain"
+          style={{ width: 160, height: 160 }}
+        />
       </View>
     );
   }
