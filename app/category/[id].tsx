@@ -1,19 +1,20 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useI18n } from "@/context/LanguageContext";
 import api from "@/src/services/api";
 import shoppingListService from "@/src/services/shoppingListService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    FlatList,
-    Image,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -23,7 +24,8 @@ export default function CategoryProductsPage() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const categoryId = Number(params.id);
-  const categoryName = String(params.name ?? "Категорія");
+  const providedName = String(params.name ?? "");
+  const { language } = useI18n();
 
   const [team, setTeam] = useState<any | null>(null);
   const [products, setProducts] = useState<any[]>([]);
@@ -34,6 +36,29 @@ export default function CategoryProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [productQty, setProductQty] = useState("1");
   const [productUnit, setProductUnit] = useState("шт");
+
+  const displayedCategoryName = React.useMemo(() => {
+    if (language === "uk") {
+      const fromProducts = products.find(
+        (p) => p?.category?.nameUA || p?.categoryName,
+      );
+      return (
+        (fromProducts?.category?.nameUA ??
+          fromProducts?.categoryName ??
+          providedName) ||
+        "Категорія"
+      );
+    }
+    const fromProducts = products.find(
+      (p) => p?.category?.name || p?.categoryName,
+    );
+    return (
+      (fromProducts?.category?.name ??
+        fromProducts?.categoryName ??
+        providedName) ||
+      "Category"
+    );
+  }, [language, products, providedName]);
 
   useEffect(() => {
     (async () => {
@@ -95,11 +120,19 @@ export default function CategoryProductsPage() {
         teamId: Number(team.id),
         productId: product.id ?? null,
         name:
-          (product.name || product.title || product.productName || "").trim() ||
-          "Продукт",
+          (language === "uk"
+            ? product.nameUA ||
+              product.name ||
+              product.title ||
+              product.productName
+            : product.name ||
+              product.title ||
+              product.productName ||
+              product.nameUA
+          )?.trim() || (language === "uk" ? "Продукт" : "Product"),
         quantity: qty,
         unit,
-        category: categoryName,
+        category: providedName || categoryId?.toString() || "",
         note: "",
       };
       await shoppingListService.createItem(payload);
@@ -123,7 +156,12 @@ export default function CategoryProductsPage() {
   };
 
   const filtered = products.filter((p) => {
-    const text = (p.name || p.title || p.productName || "").toLowerCase();
+    const text = (
+      (language === "uk" ? (p.nameUA ?? p.name) : (p.name ?? p.nameUA)) ||
+      p.title ||
+      p.productName ||
+      ""
+    ).toLowerCase();
     return text.includes(q.toLowerCase());
   });
 
@@ -135,7 +173,7 @@ export default function CategoryProductsPage() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <ThemedText type="title" style={styles.title}>
-            {categoryName}
+            {displayedCategoryName}
           </ThemedText>
           <ThemedText style={{ color: "#666", marginTop: 4 }}>
             {team?.name ?? "Команда"}
@@ -175,7 +213,17 @@ export default function CategoryProductsPage() {
           contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 120 }}
           renderItem={({ item }) => {
             const name =
-              item.name ?? item.title ?? item.productName ?? "Продукт";
+              language === "uk"
+                ? (item.nameUA ??
+                  item.name ??
+                  item.title ??
+                  item.productName ??
+                  "Продукт")
+                : (item.name ??
+                  item.title ??
+                  item.productName ??
+                  item.nameUA ??
+                  "Product");
             const imageBase64 =
               typeof item.imageBase64 === "string" && item.imageBase64.trim()
                 ? item.imageBase64.trim()
@@ -237,11 +285,19 @@ export default function CategoryProductsPage() {
                 <Text style={{ fontSize: 18 }}>←</Text>
               </TouchableOpacity>
               <ThemedText type="title" style={styles.modalTitle}>
-                {selectedProduct.name ?? selectedProduct.title ?? "Продукт"}
+                {language === "uk"
+                  ? (selectedProduct.nameUA ??
+                    selectedProduct.name ??
+                    selectedProduct.title ??
+                    "Продукт")
+                  : (selectedProduct.name ??
+                    selectedProduct.title ??
+                    selectedProduct.nameUA ??
+                    "Product")}
               </ThemedText>
             </View>
             <ThemedText style={{ marginTop: 8, color: "#444" }}>
-              Категорія: {categoryName}
+              Категорія: {displayedCategoryName}
             </ThemedText>
             <View style={{ marginTop: 12 }}>
               <ThemedText style={styles.formLabel}>Кількість</ThemedText>

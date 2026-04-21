@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import { useI18n } from "@/context/LanguageContext";
 import api from "@/src/services/api";
 import productService from "@/src/services/productService";
 import shoppingListService from "@/src/services/shoppingListService";
@@ -36,6 +37,7 @@ type ShoppingListItem = {
   teamId?: number;
   productId?: number | null;
   name: string;
+  nameUA?: string;
   quantity: number;
   unit: string;
   category: string;
@@ -46,6 +48,8 @@ type ShoppingListItem = {
   assignedToUserId?: number | string | null;
   assignedToAvatar?: string | null;
   buyerAvatar?: string | null;
+  catalogName?: string | null;
+  catalogNameUA?: string | null;
 };
 
 type CategoryOption = {
@@ -64,6 +68,7 @@ const FALLBACK_CATEGORY_OPTIONS: CategoryOption[] = [
 export default function ShoppingListPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { language } = useI18n();
   const [team, setTeam] = useState<any | null>(null);
   const [items, setItems] = useState<ShoppingListItem[]>([]);
   const [participants, setParticipants] = useState<TeamMember[]>([]);
@@ -160,26 +165,30 @@ export default function ShoppingListPage() {
         return sourceItems;
       }
 
-      const productImagePairs = await Promise.all(
+      const productPairs = await Promise.all(
         idsToLoad.map(async (id) => {
           try {
             const product = await productService.getProductById(id);
-            return [id, product?.imageBase64 ?? null] as const;
+            return [id, product ?? null] as const;
           } catch {
             return [id, null] as const;
           }
         }),
       );
 
-      const imageMap = new Map<number, string | null>(productImagePairs);
+      const productMap = new Map<number, any>(productPairs as any);
 
       return sourceItems.map((item) => {
-        if (!item.productId || item.productImage) {
-          return item;
-        }
+        if (!item.productId) return item;
+        const prod = productMap.get(Number(item.productId)) ?? null;
         return {
           ...item,
-          productImage: imageMap.get(Number(item.productId)) ?? null,
+          productImage:
+            prod?.imageBase64 && typeof prod.imageBase64 === "string"
+              ? prod.imageBase64.trim()
+              : (item.productImage ?? null),
+          catalogName: prod?.name ?? null,
+          catalogNameUA: prod?.nameUA ?? null,
         };
       });
     },
@@ -309,8 +318,8 @@ export default function ShoppingListPage() {
     const defaultCategory = categories[0] ?? FALLBACK_CATEGORY_OPTIONS[0];
     setEditingId(item.id);
     setForm({
-      name: item.name ?? "",
-      nameUA: item.name ?? "",
+      name: item.name ?? item.catalogName ?? "",
+      nameUA: item.nameUA ?? item.catalogNameUA ?? item.name ?? "",
       category: item.category || defaultCategory?.name || "",
       categoryId: matchedCategory?.id ?? null,
       quantity: String(item.quantity ?? 1),
@@ -425,7 +434,20 @@ export default function ShoppingListPage() {
     FALLBACK_CATEGORY_OPTIONS,
   );
   const units = ["шт", "кг", "мл"];
-  const [Form, setForm] = React.useState({
+  type FormState = {
+    name: string;
+    nameUA: string;
+    category: string;
+    categoryId: number | null;
+    quantity: string;
+    unit: string;
+    assignedToUserId: string;
+    note: string;
+    imageBase64: string | null;
+    imagePreviewUri: string | null;
+  };
+
+  const [Form, setForm] = React.useState<FormState>({
     name: "",
     nameUA: "",
     category: FALLBACK_CATEGORY_OPTIONS[0].name,
@@ -434,8 +456,8 @@ export default function ShoppingListPage() {
     unit: units[0],
     assignedToUserId: "",
     note: "",
-    imageBase64: "",
-    imagePreviewUri: "",
+    imageBase64: null,
+    imagePreviewUri: null,
   });
 
   useEffect(() => {
@@ -448,15 +470,20 @@ export default function ShoppingListPage() {
             (category: any) =>
               category &&
               category.id != null &&
-              typeof category.name === "string" &&
-              category.name.trim().length > 0,
+              (category.name || category.nameUA),
           )
-          .map(
-            (category: any): CategoryOption => ({
-              id: Number(category.id),
-              name: String(category.name).trim(),
-            }),
-          );
+          .map((category: any): CategoryOption => {
+            const rawName =
+              language === "uk"
+                ? typeof category.nameUA === "string" && category.nameUA.trim()
+                  ? category.nameUA
+                  : category.name
+                : typeof category.name === "string" && category.name.trim()
+                  ? category.name
+                  : category.nameUA;
+
+            return { id: Number(category.id), name: String(rawName ?? "") };
+          });
 
         if (mapped.length > 0) {
           setCategories(mapped);
@@ -465,7 +492,7 @@ export default function ShoppingListPage() {
         console.warn("Не вдалося завантажити категорії", error);
       }
     })();
-  }, []);
+  }, [language]);
 
   function openCatalog() {
     router.push("/add-product");
@@ -704,7 +731,7 @@ export default function ShoppingListPage() {
 
     setForm((prev) => ({
       ...prev,
-      imageBase64: selected.base64,
+      imageBase64: selected.base64 ?? null,
       imagePreviewUri: previewUri,
     }));
   }
@@ -780,9 +807,14 @@ export default function ShoppingListPage() {
         {items.length === 0
           ? renderEmpty()
           : items
-              .filter((it) =>
-                it.name?.toLowerCase().includes(query.trim().toLowerCase()),
-              )
+              .filter((it) => {
+                const text = (
+                  (language === "uk"
+                    ? (it.catalogNameUA ?? it.name ?? it.catalogName)
+                    : (it.name ?? it.catalogName ?? it.catalogNameUA)) || ""
+                ).toLowerCase();
+                return text.includes(query.trim().toLowerCase());
+              })
               .map((item, idx) => {
                 const hasAssignee =
                   item.assignedToUserId != null &&
@@ -809,6 +841,17 @@ export default function ShoppingListPage() {
                   .toUpperCase();
                 const productImageSource = normalizeImageUri(item.productImage);
                 const checkboxLoading = checkboxLoadingIds.includes(item.id);
+                const displayName =
+                  language === "uk"
+                    ? (item.catalogNameUA ??
+                      item.name ??
+                      item.catalogName ??
+                      "Продукт")
+                    : (item.name ??
+                      item.catalogName ??
+                      item.catalogNameUA ??
+                      "Product");
+
                 return (
                   <TouchableOpacity
                     key={String(item.id ?? idx)}
@@ -831,7 +874,7 @@ export default function ShoppingListPage() {
                           style={styles.productTitleNew}
                           numberOfLines={2}
                         >
-                          {item.name}
+                          {displayName}
                         </ThemedText>
                         <ThemedText style={styles.productSubNew}>
                           Купити: {buyerName}

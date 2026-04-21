@@ -1,5 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useI18n } from "@/context/LanguageContext";
 import api from "@/src/services/api";
 import productService from "@/src/services/productService";
 import { showToast } from "@/utils/toast";
@@ -24,6 +25,7 @@ const VIEW_TEAM_KEY = "view_team_id";
 
 export default function AddProductPage() {
   const router = useRouter();
+  const { language } = useI18n();
   const [team, setTeam] = useState<any | null>(null);
   const [categories, setCategories] = useState<
     { id: number; name: string; imageBase64?: string }[]
@@ -56,7 +58,7 @@ export default function AddProductPage() {
         console.error(err);
       }
     })();
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     (async () => {
@@ -65,15 +67,26 @@ export default function AddProductPage() {
         const res = await api.get("api/categories");
         const data = Array.isArray(res.data) ? res.data : [];
         const mapped = data
-          .filter((c: any) => c && c.id != null && c.name)
-          .map((c: any) => ({
-            id: c.id,
-            name: String(c.name),
-            imageBase64:
-              typeof c.imageBase64 === "string" && c.imageBase64.trim()
-                ? c.imageBase64.trim()
-                : undefined,
-          }));
+          .filter((c: any) => c && c.id != null && (c.name || c.nameUA))
+          .map((c: any) => {
+            const rawName =
+              language === "uk"
+                ? typeof c.nameUA === "string" && c.nameUA.trim()
+                  ? c.nameUA
+                  : c.name
+                : typeof c.name === "string" && c.name.trim()
+                  ? c.name
+                  : c.nameUA;
+
+            return {
+              id: c.id,
+              name: String(rawName ?? ""),
+              imageBase64:
+                typeof c.imageBase64 === "string" && c.imageBase64.trim()
+                  ? c.imageBase64.trim()
+                  : undefined,
+            };
+          });
         setCategories(mapped);
         setError(null);
       } catch (e) {

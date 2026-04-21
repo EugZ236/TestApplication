@@ -11,9 +11,11 @@ export interface GlobalProduct {
 export interface ProductDetailsDto {
   id: number;
   name: string;
+  nameUA?: string;
   defaultUnit: string;
   categoryId: number;
-  categoryName: string;
+  categoryName?: string;
+  categoryNameUA?: string;
   imageBase64?: string | null;
 }
 
