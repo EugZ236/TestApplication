@@ -1,18 +1,22 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import api from "@/src/services/api";
+import productService from "@/src/services/productService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import * as ImagePicker from "expo-image-picker";
+import { showToast } from "@/utils/toast";
 import {
-    Image,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  ActivityIndicator,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -26,6 +30,14 @@ export default function AddProductPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [nameUA, setNameUA] = useState("");
+  const [defaultUnit, setDefaultUnit] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
     (async () => {
       try {
@@ -70,6 +82,79 @@ export default function AddProductPage() {
       }
     })();
   }, []);
+
+  const openModal = () => {
+    setName("");
+    setNameUA("");
+    setDefaultUnit("");
+    setSelectedCategoryId(categories.length > 0 ? categories[0].id : null);
+    setImageBase64(null);
+    setPreviewUri(null);
+    setIsModalOpen(true);
+  };
+
+  const pickImage = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== "granted") {
+        showToast.error("Потрібен доступ до медіа бібліотеки");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        base64: true,
+        quality: 0.8,
+      });
+
+      const anyRes = result as any;
+      if (anyRes.cancelled === true || anyRes.canceled === true) return;
+
+      const base64 = anyRes.base64 ?? (anyRes.assets && anyRes.assets[0]?.base64) ?? null;
+      const uri = anyRes.uri ?? (anyRes.assets && anyRes.assets[0]?.uri) ?? null;
+
+      if (base64) {
+        setImageBase64(base64);
+        setPreviewUri(uri ? (uri.startsWith("data:") ? uri : `data:image/jpeg;base64,${base64}`) : `data:image/jpeg;base64,${base64}`);
+      } else if (uri) {
+        setPreviewUri(uri);
+        showToast.info("Зображення вибране. Воно буде відправлене як URI, якщо сервер дозволяє.");
+      }
+    } catch (e) {
+      console.error("pickImage", e);
+      showToast.error("Не вдалось вибрати зображення");
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!name.trim()) return showToast.error("Введіть назву англійською");
+    if (!nameUA.trim()) return showToast.error("Введіть назву українською");
+    if (!defaultUnit) return showToast.error("Оберіть одиницю виміру");
+    if (!imageBase64) return showToast.error("Додайте зображення продукту");
+    if (!selectedCategoryId) return showToast.error("Оберіть категорію");
+
+    try {
+      setSubmitting(true);
+      const payload = {
+        name: name.trim(),
+        nameUA: nameUA.trim(),
+        defaultUnit,
+        categoryId: selectedCategoryId,
+        imageBase64,
+      } as any;
+
+      const id = await productService.createProduct(payload);
+      showToast.success("Продукт створено");
+      setIsModalOpen(false);
+      router.push(`/category/${selectedCategoryId}?name=${encodeURIComponent(categories.find(c=>c.id===selectedCategoryId)?.name ?? "")}`);
+    } catch (e) {
+      console.error("create product", e);
+      showToast.error("Помилка", "Не вдалося створити продукт");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -151,13 +236,74 @@ export default function AddProductPage() {
         </View>
         <TouchableOpacity
           style={styles.addBtn}
-          onPress={() => router.push("/shopping-list")}
+          onPress={openModal}
         >
           <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
             + Додати свій продукт
           </ThemedText>
         </TouchableOpacity>
       </View>
+      {isModalOpen && (
+        <View style={styles.modalWrapper}>
+          <View style={styles.modalCard}>
+            <ScrollView>
+              <ThemedText type="title">Додати свій продукт</ThemedText>
+
+              <ThemedText style={{ marginTop: 10 }}>Назва (англійською)</ThemedText>
+              <TextInput value={name} onChangeText={setName} style={styles.titleInput} placeholder="e.g. Milk" />
+
+              <ThemedText style={{ marginTop: 10 }}>Назва (українською)</ThemedText>
+              <TextInput value={nameUA} onChangeText={setNameUA} style={styles.titleInput} placeholder="наприклад: Молоко" />
+
+              <ThemedText style={{ marginTop: 10 }}>Одиниця виміру</ThemedText>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                {['g','kg','l','ml'].map(u => (
+                  <TouchableOpacity key={u} onPress={() => setDefaultUnit(u)} style={[styles.unitBtn, defaultUnit===u && styles.unitBtnActive]}>
+                    <Text style={{ fontWeight: defaultUnit===u ? '700' : '500' }}>{u}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <ThemedText style={{ marginTop: 12 }}>Категорія</ThemedText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                {categories.map(c => (
+                  <TouchableOpacity key={c.id} onPress={() => setSelectedCategoryId(c.id)} style={[styles.categoryCard, selectedCategoryId===c.id && { borderColor: '#2F80ED' }]}>
+                    {c.imageBase64 ? (
+                      <Image source={{ uri: c.imageBase64.startsWith('data:') ? c.imageBase64 : `data:image/png;base64,${c.imageBase64}` }} style={{ width:40, height:40, borderRadius:8 }} />
+                    ) : (
+                      <View style={{ width:40, height:40, borderRadius:8, backgroundColor:'#F4F7FF' }} />
+                    )}
+                    <Text style={{ marginTop:6 }}>{c.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <ThemedText style={{ marginTop: 12 }}>Зображення</ThemedText>
+              <TouchableOpacity onPress={pickImage} style={{ marginTop: 8, alignItems: 'center' }}>
+                {previewUri ? (
+                  <Image source={{ uri: previewUri }} style={{ width: 140, height: 140, borderRadius: 10 }} />
+                ) : (
+                  <View style={{ width: 140, height: 140, borderRadius: 10, backgroundColor: '#F4F7FF', justifyContent:'center', alignItems:'center' }}>
+                    <Text>Вибрати фото</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleSubmit} style={styles.saveBtn} disabled={submitting}>
+                {submitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <ThemedText style={{ color: '#fff', fontWeight: '700' }}>Зберегти</ThemedText>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => setIsModalOpen(false)} style={[styles.saveBtn, { backgroundColor: '#ccc' }]}> 
+                <ThemedText style={{ color: '#000', fontWeight: '700' }}>Скасувати</ThemedText>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      )}
     </ThemedView>
   );
 }
@@ -261,6 +407,20 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,
+  },
+  unitBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  unitBtnActive: {
+    backgroundColor: '#E8F0FF',
+    borderColor: '#2F80ED'
   },
   titleInput: {
     marginTop: 10,
