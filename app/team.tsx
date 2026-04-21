@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import budgetService from "@/src/services/budgetService";
 import productService from "@/src/services/productService";
 import shoppingListService from "@/src/services/shoppingListService";
 import shoppingListSignalRService from "@/src/services/shoppingListSignalRService";
@@ -11,15 +12,15 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -45,6 +46,7 @@ export default function TeamPage() {
   );
   const [shoppingItems, setShoppingItems] = useState<any[]>([]); // initially empty per requirement
   const [budgetAmount, setBudgetAmount] = useState<number>(0);
+  const [currentBudget, setCurrentBudget] = useState<any | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showMembersInSidebar, setShowMembersInSidebar] = useState(false);
   const [participants, setParticipants] = useState<TeamMember[]>([]);
@@ -106,20 +108,47 @@ export default function TeamPage() {
           }
         }
 
-        // Load budget from the same key that BudgetPage uses. If absent -> 0
+        // Load current budget from server for this team (fallback to local storage)
         try {
-          const budgetRaw = await AsyncStorage.getItem("budget_v1");
-          if (budgetRaw) {
-            const parsed = JSON.parse(budgetRaw) as { amount?: number } | null;
-            setBudgetAmount(
-              parsed && typeof parsed.amount === "number" ? parsed.amount : 0,
+          const budgets = await budgetService.getBudgetsByTeam(
+            Number(found.id),
+          );
+          const now = new Date();
+          const month = now.getMonth() + 1;
+          const year = now.getFullYear();
+          const current = budgets.find((b: any) => {
+            const bMonth = b.month ?? b.Month;
+            const bYear = b.year ?? b.Year;
+            return (
+              Number(bMonth) === Number(month) && Number(bYear) === Number(year)
             );
-          } else {
+          });
+          const limit = current
+            ? Number(current.limitAmount ?? current.LimitAmount ?? 0)
+            : 0;
+          setBudgetAmount(Number.isFinite(limit) ? limit : 0);
+          setCurrentBudget(current ?? null);
+        } catch (e) {
+          console.warn(
+            "Failed to load budgets from server, falling back to local",
+            e,
+          );
+          try {
+            const budgetRaw = await AsyncStorage.getItem("budget_v1");
+            if (budgetRaw) {
+              const parsed = JSON.parse(budgetRaw) as {
+                amount?: number;
+              } | null;
+              setBudgetAmount(
+                parsed && typeof parsed.amount === "number" ? parsed.amount : 0,
+              );
+            } else {
+              setBudgetAmount(0);
+            }
+          } catch (err) {
+            console.error("load budget:", err);
             setBudgetAmount(0);
           }
-        } catch (e) {
-          console.error("load budget:", e);
-          setBudgetAmount(0);
         }
       } catch (e) {
         console.error(e);
@@ -333,9 +362,24 @@ export default function TeamPage() {
   })();
 
   const shoppingCount = shoppingItems.length;
-  const spent = 0; // no spent tracking on team page yet
-  const limit = budgetAmount; // treat stored budget as the limit/remaining source
+  const spent = currentBudget
+    ? Number(currentBudget.currentSpent ?? currentBudget.CurrentSpent ?? 0)
+    : 0;
+  const limit = currentBudget
+    ? Number(
+        currentBudget.limitAmount ?? currentBudget.LimitAmount ?? budgetAmount,
+      )
+    : budgetAmount;
   const budgetPct = limit > 0 ? Math.min(1, spent / limit) : 0;
+
+  const budgetPill = (() => {
+    if (!limit || limit <= 0) return null;
+    const pct = Math.round(budgetPct * 100);
+    if (pct <= 25) return { text: "Гуляй-Народ!", color: "#10B981" };
+    if (pct <= 50) return { text: "Треба їсти", color: "#F59E0B" };
+    if (pct <= 75) return { text: "Ще трохи є", color: "#F97316" };
+    return { text: "⚠️ Ліміт близько", color: "#D9534F" };
+  })();
 
   return (
     <ThemedView style={styles.container}>
@@ -518,10 +562,15 @@ export default function TeamPage() {
               </ThemedText>
               <View style={styles.budgetRow}>
                 <ThemedText type="title">{`₴${budgetAmount.toLocaleString()}`}</ThemedText>
-                {limit > 0 ? (
-                  <View style={styles.limitPill}>
-                    <ThemedText style={{ color: "#AA5A00", fontSize: 12 }}>
-                      ⚠️ Ліміт близько
+                {budgetPill ? (
+                  <View
+                    style={[
+                      styles.limitPill,
+                      { backgroundColor: budgetPill.color },
+                    ]}
+                  >
+                    <ThemedText style={{ color: "#fff", fontSize: 12 }}>
+                      {budgetPill.text}
                     </ThemedText>
                   </View>
                 ) : null}

@@ -1,24 +1,26 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useI18n } from "@/context/LanguageContext";
+import budgetService from "@/src/services/budgetService";
 import teamService from "@/src/services/teamService";
 import { showToast } from "@/utils/toast";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 export default function CreateTeamPage() {
   const router = useRouter();
   const { t } = useI18n();
   const [name, setName] = useState("");
+  const [limitAmount, setLimitAmount] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [createContext, setCreateContext] = useState<
     "post_signup" | "fab" | null
@@ -33,11 +35,33 @@ export default function CreateTeamPage() {
       return;
     }
 
+    const parsedLimit = Number(String(limitAmount).replace(/[^0-9.]/g, ""));
+    if (!limitAmount || !Number.isFinite(parsedLimit) || parsedLimit <= 0) {
+      showToast.error("Помилка", "Вкажіть допустимий ліміт бюджету");
+      return;
+    }
+
     setIsSaving(true);
     try {
-      // 1. Виклик API через сервіс
-      // Передаємо тільки name, оскільки ваш бекенд (згідно зі Swagger) очікує лише його
-      await teamService.createTeam(name.trim());
+      // 1. Виклик API через сервіс: створюємо команду
+      const created = await teamService.createTeam(name.trim());
+
+      // 2. Створюємо початковий бюджет для поточного місяця з вказаним лімітом
+      try {
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+        await budgetService.createBudget({
+          teamId: Number(created.id),
+          month,
+          year,
+          limitAmount: parsedLimit,
+          currentSpent: 0,
+        });
+      } catch (err: any) {
+        // Якщо бекенд повернув конфлікт або іншу помилку, логують, але не блокуємо створення команди
+        console.warn("Не вдалося створити бюджет для команди", err);
+      }
 
       // 2. Очищення тимчасового контексту створення (якщо він був)
       try {
@@ -97,6 +121,18 @@ export default function CreateTeamPage() {
           onChangeText={setName}
           placeholder={t("createTeam.teamNamePlaceholder")}
           style={styles.input}
+          editable={!isSaving}
+        />
+
+        <Text style={[styles.label, { marginTop: 12 }]}>
+          Ліміт бюджету (UAH)
+        </Text>
+        <TextInput
+          value={limitAmount}
+          onChangeText={setLimitAmount}
+          placeholder="Наприклад: 10000"
+          style={styles.input}
+          keyboardType="numeric"
           editable={!isSaving}
         />
 

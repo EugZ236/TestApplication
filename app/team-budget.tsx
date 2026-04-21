@@ -1,46 +1,21 @@
+import budgetService from "@/src/services/budgetService";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
 const VIEW_TEAM_KEY = "view_team_id";
 
-const budgetData = {
-  monthDays: [
-    { day: "Пн", value: 450 },
-    { day: "Вт", value: 320 },
-    { day: "Ср", value: 680 },
-    { day: "Чт", value: 240 },
-    { day: "Пт", value: 520 },
-    { day: "Сб", value: 380 },
-    { day: "Нд", value: 0 },
-  ],
-  categories: [
-    { name: "Продукти", percent: 55, color: "#2563EB" },
-    { name: "Кафе", percent: 20, color: "#F59E0B" },
-    { name: "Дім", percent: 10, color: "#10B981" },
-    { name: "Залишок", percent: 15, color: "#E5E7EB" },
-  ],
-  members: [
-    { name: "Олена К.", amount: 4150, percent: 53 },
-    { name: "Андрій М.", amount: 2800, percent: 36 },
-    { name: "Інші", amount: 600, percent: 8 },
-  ],
-};
+// Sample/mock data removed — use server-provided budget for rendering
 
-const maxBarValue = Math.max(...budgetData.monthDays.map((d) => d.value || 0));
+// (previous chart data helpers retained) - maxBarValue removed as chart is simplified
 
 export default function TeamBudgetPage() {
   const router = useRouter();
-  const [team, setTeam] = useState<any>(null);
+  const [budgetLimitState, setBudgetLimitState] = useState<number | null>(null);
+  const [currentBudget, setCurrentBudget] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -53,15 +28,43 @@ export default function TeamBudgetPage() {
             if (t?.id == null || id == null) return false;
             return String(t.id) === String(id);
           }) || null;
-        setTeam(found);
+        if (found?.id) {
+          try {
+            const budgets = await budgetService.getBudgetsByTeam(
+              Number(found.id),
+            );
+            const now = new Date();
+            const month = now.getMonth() + 1;
+            const year = now.getFullYear();
+            const current = budgets.find((b: any) => {
+              const bMonth = b.month ?? b.Month;
+              const bYear = b.year ?? b.Year;
+              return (
+                Number(bMonth) === Number(month) &&
+                Number(bYear) === Number(year)
+              );
+            });
+            // If no budget is found or limit is missing treat it as 0
+            const rawLimit = current
+              ? (current.limitAmount ?? current.LimitAmount ?? 0)
+              : 0;
+            const limit = Number(rawLimit ?? 0);
+            setBudgetLimitState(Number.isFinite(limit) ? limit : 0);
+            setCurrentBudget(current ?? null);
+          } catch (err) {
+            console.warn("Failed to load budgets", err);
+          }
+        }
       } catch (e) {
         console.error(e);
       }
     })();
   }, []);
 
-  const totalSpent = budgetData.members.reduce((sum, m) => sum + m.amount, 0);
-  const budgetLimit = 10000;
+  const totalSpent = currentBudget
+    ? Number(currentBudget.currentSpent ?? currentBudget.CurrentSpent ?? 0)
+    : 0;
+  const pieData = currentBudget?.categories ?? [];
 
   return (
     <View style={styles.container}>
@@ -69,149 +72,17 @@ export default function TeamBudgetPage() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Бюджет</Text>
-        <TouchableOpacity style={styles.downloadBtn}>
-          <Ionicons name="download-outline" size={20} color="#9CA3AF" />
-        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.teamSection}>
-          <View style={styles.teamBadge}>
-            <Text style={styles.teamBadgeText}>FAMILY TEAM</Text>
-          </View>
-          <Text style={styles.monthLabel}>Лютий 2026</Text>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <View style={styles.pieContainer}>
+          <PieChart
+            data={pieData}
+            total={totalSpent}
+            limit={budgetLimitState}
+          />
         </View>
-
-        <View style={styles.timeSwitch}>
-          <TouchableOpacity
-            style={[styles.timeSwitchBtn, styles.timeSwitchActive]}
-          >
-            <Text style={styles.timeSwitchText}>Тиждень</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.timeSwitchBtn}>
-            <Text style={styles.timeSwitchTextInactive}>Місяць</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.timeSwitchBtn}>
-            <Text style={styles.timeSwitchTextInactive}>Рік</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.spentSection}>
-          <Text style={styles.spentLabel}>Витрачено у Лютому</Text>
-          <View style={styles.spentRow}>
-            <Text style={styles.spentAmount}>
-              ₴{totalSpent.toLocaleString()}
-            </Text>
-            <Text style={styles.spentLimit}>
-              / {`₴${budgetLimit.toLocaleString()}`}
-            </Text>
-          </View>
-          <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${Math.min((totalSpent / budgetLimit) * 100, 100)}%`,
-                },
-              ]}
-            />
-          </View>
-          <View style={styles.progressLabel}>
-            <Text style={styles.progressLabelText}>Залишилось 25%</Text>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Динаміка витрат</Text>
-          <View style={styles.chartContainer}>
-            <View style={styles.chart}>
-              {budgetData.monthDays.map((day, idx) => (
-                <View key={idx} style={styles.barWrapper}>
-                  <View style={styles.barLabelContainer}>
-                    <View
-                      style={[
-                        styles.bar,
-                        {
-                          height:
-                            maxBarValue > 0
-                              ? (Math.max(day.value || 0, 50) /
-                                  (maxBarValue * 1.2)) *
-                                140
-                              : 30,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.barLabel}>{day.day}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Розподіл за категоріями</Text>
-          <View style={styles.pieContainer}>
-            <PieChart data={budgetData.categories} total={totalSpent} />
-          </View>
-
-          <View style={styles.legendContainer}>
-            {budgetData.categories.map((cat, idx) => (
-              <View key={idx} style={styles.legendItem}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: cat.color }]}
-                />
-                <Text style={styles.legendLabel}>{cat.name}</Text>
-                <Text style={styles.legendPercent}>{cat.percent}%</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.memberHeaderRow}>
-            <Text style={styles.sectionTitle}>Вклад учасників</Text>
-            <TouchableOpacity>
-              <Ionicons name="help-circle-outline" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
-          </View>
-
-          {budgetData.members.map((member, idx) => (
-            <View key={idx} style={styles.memberCard}>
-              <View style={styles.memberAvatar}>
-                <Text style={styles.memberAvatarText}>
-                  {member.name.charAt(0)}
-                </Text>
-              </View>
-              <View style={styles.memberInfo}>
-                <Text style={styles.memberName}>{member.name}</Text>
-                <View style={styles.memberBarContainer}>
-                  <View
-                    style={[styles.memberBar, { width: `${member.percent}%` }]}
-                  />
-                </View>
-              </View>
-              <Text style={styles.memberAmount}>
-                {`₴${member.amount.toLocaleString()}`}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.trendSection}>
-          <View style={styles.trendIcon}>
-            <Ionicons name="trending-down-outline" size={20} color="#2563EB" />
-          </View>
-          <View style={styles.trendText}>
-            <Text style={styles.trendTitle}>Тренди витрат</Text>
-            <Text style={styles.trendDesc}>
-              Ви витрачаєте на 12% менше, ніж минулого місяця в цей час. Так
-              тримати!
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -219,31 +90,13 @@ export default function TeamBudgetPage() {
 function PieChart({
   data,
   total,
+  limit,
 }: {
   data: { name: string; percent: number; color: string }[];
   total: number;
+  limit?: number | null;
 }) {
-  let cumulativePercent = 0;
-  const paths = data.map((item) => {
-    const startAngle = (cumulativePercent / 100) * 360;
-    const endAngle = ((cumulativePercent + item.percent) / 100) * 360;
-    cumulativePercent += item.percent;
-
-    const startRad = (startAngle * Math.PI) / 180;
-    const endRad = (endAngle * Math.PI) / 180;
-
-    const x1 = 80 + 70 * Math.cos(startRad);
-    const y1 = 80 + 70 * Math.sin(startRad);
-    const x2 = 80 + 70 * Math.cos(endRad);
-    const y2 = 80 + 70 * Math.sin(endRad);
-
-    const largeArc = item.percent > 50 ? 1 : 0;
-
-    return {
-      color: item.color,
-      path: `M 80 80 L ${x1.toFixed(0)} ${y1.toFixed(0)} A 70 70 0 ${largeArc} 1 ${x2.toFixed(0)} ${y2.toFixed(0)} Z`,
-    };
-  });
+  // render pieces directly below
 
   return (
     <View style={styles.pieChartWrapper}>
@@ -264,7 +117,14 @@ function PieChart({
           ))}
           <View style={styles.pieChartCenter}>
             <Text style={styles.pieTotalLabel}>Всього</Text>
-            <Text style={styles.pieTotalValue}>₴{total.toLocaleString()}</Text>
+            <Text style={styles.pieTotalValue}>
+              {`₴${total.toLocaleString("uk-UA")} / ₴${(Number.isFinite(
+                limit as number,
+              )
+                ? (limit as number)
+                : 0
+              ).toLocaleString("uk-UA")}`}
+            </Text>
           </View>
         </View>
       </View>
