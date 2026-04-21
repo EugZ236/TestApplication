@@ -5,21 +5,20 @@ import { useAuth } from "@/context/AuthContext";
 import { useI18n } from "@/context/LanguageContext";
 import { showToast } from "@/utils/toast";
 import { isValidEmail, validatePassword } from "@/utils/validation";
-import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import Constants from "expo-constants";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 function isExpoGo() {

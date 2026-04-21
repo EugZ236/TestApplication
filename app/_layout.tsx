@@ -1,13 +1,13 @@
 import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider,
+    DarkTheme,
+    DefaultTheme,
+    ThemeProvider,
 } from "@react-navigation/native";
 import Constants from "expo-constants";
+import { Image } from "expo-image";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
-import { Image } from "expo-image";
 import { Platform, View } from "react-native";
 import "react-native-reanimated";
 import Toast from "react-native-toast-message";
