@@ -1,5 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import PizzaLoader from "@/components/pizza-loader";
 import { useI18n } from "@/context/LanguageContext";
 import api from "@/src/services/api";
 import shoppingListService from "@/src/services/shoppingListService";
@@ -191,8 +192,8 @@ export default function CategoryProductsPage() {
       </View>
 
       {loading ? (
-        <View style={styles.loadingRow}>
-          <ThemedText>{t("categoryPage.loading")}</ThemedText>
+        <View style={styles.loadingContainer}>
+          <PizzaLoader width={120} height={113} />
         </View>
       ) : error ? (
         <View style={styles.loadingRow}>
@@ -366,6 +367,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   loadingRow: { padding: 16 },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+    minHeight: 220,
+  },
   modalBackdrop: {
     position: "absolute",
     left: 0,

@@ -1,3 +1,4 @@
+import PizzaLoader from "@/components/pizza-loader";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useI18n } from "@/context/LanguageContext";
@@ -219,8 +220,11 @@ export default function AddProductPage() {
       </View>
 
       {loading ? (
-        <View style={{ padding: 16 }}>
-          <ThemedText>{t("addProductPage.loadingCategories")}</ThemedText>
+        <View style={styles.loadingContainer}>
+          <PizzaLoader width={120} height={113} />
+          <ThemedText style={styles.loadingText}>
+            {t("addProductPage.loadingCategories")}
+          </ThemedText>
         </View>
       ) : error ? (
         <View style={{ padding: 16 }}>
@@ -484,6 +488,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   categoryName: { textAlign: "center", fontWeight: "700", fontSize: 14 },
+  loadingContainer: {
+    padding: 16,
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 14,
+    color: "#666",
+  },
   bottomBar: {
     padding: 16,
     borderTopWidth: 1,
