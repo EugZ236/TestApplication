@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/context/AuthContext";
+import { useI18n } from "@/context/LanguageContext";
 import budgetService from "@/src/services/budgetService";
 import productService from "@/src/services/productService";
 import shoppingListService from "@/src/services/shoppingListService";
@@ -12,15 +13,15 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    Image,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -28,6 +29,7 @@ const VIEW_TEAM_KEY = "view_team_id";
 
 export default function TeamPage() {
   const router = useRouter();
+  const { t, language } = useI18n();
   const auth = useAuth();
   const [team, setTeam] = useState<any | null>(null);
   const [qrLink, setQrLink] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export default function TeamPage() {
     string | null
   >(null);
   const [selectedQuickQty, setSelectedQuickQty] = useState("1");
-  const [selectedQuickUnit, setSelectedQuickUnit] = useState("шт");
+  const [selectedQuickUnit, setSelectedQuickUnit] = useState(t("units.pcs"));
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const suggestionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -81,7 +83,7 @@ export default function TeamPage() {
             const defaultMember = auth.user
               ? {
                   id: auth.user.id ?? "me",
-                  firstName: auth.user.firstName ?? "Ви",
+                  firstName: auth.user.firstName ?? t("teamPage.you"),
                   lastName: auth.user.lastName ?? "",
                   role: "owner",
                   lastSeen: null,
@@ -99,7 +101,9 @@ export default function TeamPage() {
             const missing = Math.max(0, totalCount - baseMembers.length);
             const placeholders = Array.from({ length: missing }, (_, i) => ({
               id: `unknown-${i + 1}`,
-              firstName: `Учасник ${baseMembers.length + i + 1}`,
+              firstName: t("teamPage.participantFallback", {
+                count: baseMembers.length + i + 1,
+              }),
               lastName: "",
               role: "member",
               lastSeen: null,
@@ -156,6 +160,61 @@ export default function TeamPage() {
     })();
   }, []);
 
+  // Enrich items with product translations from catalog
+  const enrichWithProductTranslations = useCallback(
+    async (sourceItems: any[]) => {
+      const idsToLoad = Array.from(
+        new Set(
+          sourceItems
+            .filter((item) => item.productId)
+            .map((item) => Number(item.productId)),
+        ),
+      );
+
+      if (idsToLoad.length === 0) {
+        return sourceItems;
+      }
+
+      const productPairs = await Promise.all(
+        idsToLoad.map(async (id) => {
+          try {
+            const product = await productService.getProductById(id);
+            return [id, product ?? null] as const;
+          } catch {
+            return [id, null] as const;
+          }
+        }),
+      );
+
+      const productMap = new Map(productPairs);
+
+      return sourceItems.map((item) => {
+        if (!item.productId || !productMap.has(item.productId)) {
+          return item;
+        }
+
+        const product = productMap.get(item.productId);
+        if (!product) {
+          return item;
+        }
+
+        return {
+          ...item,
+          name: item.name ?? product.name ?? item.customName,
+          nameUA:
+            item.nameUA ||
+            product.nameUA ||
+            item.catalogNameUA ||
+            item.productNameUA ||
+            item.customName,
+          catalogName: item.catalogName ?? product.name,
+          catalogNameUA: item.catalogNameUA ?? product.nameUA,
+        };
+      });
+    },
+    [],
+  );
+
   // reload shopping items whenever screen is focused (keeps small preview in sync)
   const loadShopping = useCallback(async () => {
     try {
@@ -174,14 +233,30 @@ export default function TeamPage() {
         const mapped = (Array.isArray(remote) ? remote : []).map(
           (item: any) => ({
             id: item.id,
-            title: item.name,
-            qty: item.quantity,
+            productId: item.productId ?? item.globalProductId ?? null,
+            title: item.name ?? item.customName,
+            name: item.name,
+            nameUA:
+              item.nameUA ??
+              item.catalogNameUA ??
+              item.productNameUA ??
+              item.customName,
+            catalogName: item.catalogName ?? item.productName,
+            catalogNameUA: item.catalogNameUA ?? item.nameUA,
+            productName: item.productName,
+            productNameUA: item.productNameUA,
+            customName: item.customName,
+            titleUA: item.titleUA,
+            quantity: item.quantity,
             unit: item.unit,
-            section: item.category,
+            category: item.category,
+            note: item.note,
             buyerId: item.assignedToUserId ?? "",
           }),
         );
-        setShoppingItems(mapped);
+
+        const enriched = await enrichWithProductTranslations(mapped);
+        setShoppingItems(enriched);
       } catch (e) {
         console.warn("Не вдалося завантажити список із сервера", e);
         const shoppingRaw = await AsyncStorage.getItem(`shopping_${found.id}`);
@@ -195,17 +270,17 @@ export default function TeamPage() {
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  }, [enrichWithProductTranslations]);
 
   const addShoppingItem = useCallback(
-    async (title: string, qty: number = 1, unit: string = "шт") => {
+    async (title: string, qty: number = 1, unit: string = t("units.pcs")) => {
       const cleanTitle = title.trim();
       if (!cleanTitle) return;
       const id = team?.id ?? "default";
       const nextItem = {
         id: Date.now(),
         title: cleanTitle,
-        section: "Інше",
+        section: t("teamPage.otherCategory"),
         qty,
         unit,
       };
@@ -224,7 +299,7 @@ export default function TeamPage() {
             name: cleanTitle,
             quantity: qty,
             unit,
-            category: "Інше",
+            category: t("teamPage.otherCategory"),
           });
           // reload from server to keep model in sync
           loadShopping();
@@ -289,7 +364,7 @@ export default function TeamPage() {
       return member.email.split("@")[0];
     }
 
-    return "Учасник";
+    return t("teamPage.memberFallback");
   };
 
   const getParticipantRoleLabel = (member: TeamMember) => {
@@ -300,12 +375,32 @@ export default function TeamPage() {
       role === "administrator" ||
       role === "creator"
     ) {
-      return "Адмін";
+      return t("teamPage.adminRole");
     }
     if (role === "member" || role === "user") {
-      return "Мембер";
+      return t("teamPage.memberRole");
     }
     return undefined;
+  };
+
+  const getShoppingItemTitle = (item: any) => {
+    return language === "uk"
+      ? (item.catalogNameUA ??
+          item.nameUA ??
+          item.name ??
+          item.catalogName ??
+          item.customName ??
+          item.productNameUA ??
+          item.productName ??
+          t("common.product"))
+      : (item.name ??
+          item.productName ??
+          item.customName ??
+          item.catalogName ??
+          item.catalogNameUA ??
+          item.nameUA ??
+          item.productNameUA ??
+          t("common.product"));
   };
 
   const loadParticipants = useCallback(async () => {
@@ -358,7 +453,14 @@ export default function TeamPage() {
 
   const createdLabel = (() => {
     const d = team?.joinedAt ? new Date(team.joinedAt) : new Date();
-    return `Створено: ${d.toLocaleString("uk", { month: "short" })} ${d.getFullYear()}`;
+    const formattedDate = d.toLocaleDateString(
+      language === "uk" ? "uk" : "en-US",
+      {
+        month: "short",
+        year: "numeric",
+      },
+    );
+    return `${t("teamPage.createdLabel")}: ${formattedDate}`;
   })();
 
   const shoppingCount = shoppingItems.length;
@@ -388,7 +490,7 @@ export default function TeamPage() {
           onPress={() => router.back()}
           style={styles.iconButton}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          accessibilityLabel="Назад"
+          accessibilityLabel={t("common.back")}
         >
           <ThemedText style={{ fontSize: 18 }}>←</ThemedText>
         </TouchableOpacity>
@@ -400,7 +502,7 @@ export default function TeamPage() {
               setShowMembersInSidebar(false);
               setSidebarOpen(true);
             }}
-            accessibilityLabel="Відкрити налаштування"
+            accessibilityLabel={t("teamPage.openSettings")}
             accessibilityRole="button"
           >
             <ThemedText style={{ fontSize: 18 }}>⚙️</ThemedText>
@@ -422,7 +524,7 @@ export default function TeamPage() {
 
           <View style={styles.teamInfo}>
             <ThemedText type="title" style={styles.teamName}>
-              {team?.name ?? "Команда"}
+              {team?.name ?? t("common.team")}
             </ThemedText>
             <ThemedText style={styles.created}>{createdLabel}</ThemedText>
           </View>
@@ -434,7 +536,7 @@ export default function TeamPage() {
         <View style={styles.section}>
           <View style={styles.quickAddRow}>
             <TextInput
-              placeholder="Що треба купити? (напp. Молоко)"
+              placeholder={t("teamPage.quickAddPlaceholder")}
               style={styles.quickInput}
               value={quickText}
               onChangeText={setQuickText}
@@ -462,7 +564,7 @@ export default function TeamPage() {
                   onPress={() => {
                     setSelectedQuickSuggestion(s);
                     setSelectedQuickQty("1");
-                    setSelectedQuickUnit("шт");
+                    setSelectedQuickUnit(t("units.pcs"));
                     setShowQuickAddModal(true);
                     setShowSuggestions(false);
                   }}
@@ -484,12 +586,8 @@ export default function TeamPage() {
                 <View style={styles.iconBox}>
                   <ThemedText>📋</ThemedText>
                 </View>
-                <ThemedText type="defaultSemiBold">Список покупок</ThemedText>
-              </View>
-
-              <View style={styles.badge}>
-                <ThemedText style={styles.badgeText}>
-                  {shoppingCount}
+                <ThemedText type="defaultSemiBold">
+                  {t("teamPage.shoppingListTitle")}
                 </ThemedText>
               </View>
             </View>
@@ -498,30 +596,34 @@ export default function TeamPage() {
               {shoppingItems.length === 0 ? (
                 <View style={{ paddingVertical: 18, alignItems: "center" }}>
                   <ThemedText style={{ color: "#999" }}>
-                    Список покупок порожній
+                    {t("shoppingList.emptyTitle")}
                   </ThemedText>
                   <ThemedText style={{ color: "#999", marginTop: 8 }}>
-                    Щоб додати — використайте поле вище
+                    {t("shoppingList.emptyHint")}
                   </ThemedText>
                 </View>
               ) : (
                 shoppingItems.slice(0, 4).map((it, idx) => {
                   const parts: string[] = [];
-                  if (it.qty) parts.push(`${it.qty} ${it.unit ?? "шт"}`);
+                  if (it.qty)
+                    parts.push(`${it.qty} ${it.unit ?? t("units.pcs")}`);
                   if (it.buyerId) {
                     const member = participants.find(
                       (m: any) => String(m.id) === String(it.buyerId),
                     );
-                    parts.push(
-                      `Купує ${member ? getParticipantFullName(member) : it.buyerId === "me" ? "Ви" : "Учасник"}`,
-                    );
+                    const buyerName = member
+                      ? getParticipantFullName(member)
+                      : it.buyerId === "me"
+                        ? t("teamPage.you")
+                        : t("teamPage.memberFallback");
+                    parts.push(t("teamPage.boughtBy", { buyer: buyerName }));
                   }
                   if (it.comment) parts.push(it.comment);
                   const subtitle = parts.join(" • ");
                   return (
                     <ListItem
                       key={String(it.id ?? idx)}
-                      title={it.title}
+                      title={getShoppingItemTitle(it)}
                       subtitle={subtitle}
                       small
                     />
@@ -534,7 +636,7 @@ export default function TeamPage() {
                 onPress={() => router.push("/shopping-list")}
               >
                 <ThemedText style={{ color: "#007AFF", fontWeight: "700" }}>
-                  Відкрити повний список
+                  {t("shoppingList.openFullList")}
                 </ThemedText>
               </TouchableOpacity>
             </View>
@@ -551,14 +653,16 @@ export default function TeamPage() {
                 <View style={styles.iconBoxGreen}>
                   <ThemedText>💵</ThemedText>
                 </View>
-                <ThemedText type="defaultSemiBold">Бюджет команди</ThemedText>
+                <ThemedText type="defaultSemiBold">
+                  {t("teamPage.budgetCardTitle")}
+                </ThemedText>
               </View>
               <ThemedText style={{ color: "#666" }}>›</ThemedText>
             </View>
 
             <View style={{ paddingTop: 12 }}>
               <ThemedText style={{ color: "#666", marginBottom: 8 }}>
-                Залишок на Дотий
+                {t("teamPage.budgetRemaining")}
               </ThemedText>
               <View style={styles.budgetRow}>
                 <ThemedText type="title">{`₴${budgetAmount.toLocaleString()}`}</ThemedText>
@@ -588,10 +692,10 @@ export default function TeamPage() {
               <View style={styles.budgetMetaRow}>
                 <ThemedText
                   style={{ color: "#999" }}
-                >{`Витрачено: ₴${spent.toLocaleString()}`}</ThemedText>
+                >{`${t("teamPage.spentLabel")}: ₴${spent.toLocaleString()}`}</ThemedText>
                 <ThemedText
                   style={{ color: "#999" }}
-                >{`Ліміт: ₴${limit.toLocaleString()}`}</ThemedText>
+                >{`${t("teamPage.limitLabel")}: ₴${limit.toLocaleString()}`}</ThemedText>
               </View>
             </View>
           </TouchableOpacity>
@@ -605,7 +709,9 @@ export default function TeamPage() {
           <View style={styles.modalCardQuickAdd}>
             <View style={styles.modalHeaderQuickAdd}>
               <ThemedText type="title">
-                Додати {selectedQuickSuggestion ?? "продукт"}
+                {t("teamPage.addProductTitle", {
+                  item: selectedQuickSuggestion ?? t("teamPage.product"),
+                })}
               </ThemedText>
               <TouchableOpacity
                 onPress={() => setShowQuickAddModal(false)}
@@ -615,7 +721,9 @@ export default function TeamPage() {
               </TouchableOpacity>
             </View>
             <View style={styles.modalFieldRow}>
-              <ThemedText style={styles.modalLabel}>Кількість</ThemedText>
+              <ThemedText style={styles.modalLabel}>
+                {t("teamPage.quantityLabel")}
+              </ThemedText>
               <TextInput
                 style={styles.modalInput}
                 value={selectedQuickQty}
@@ -624,7 +732,9 @@ export default function TeamPage() {
               />
             </View>
             <View style={styles.modalFieldRow}>
-              <ThemedText style={styles.modalLabel}>Одиниця</ThemedText>
+              <ThemedText style={styles.modalLabel}>
+                {t("teamPage.unitLabel")}
+              </ThemedText>
               <TextInput
                 style={styles.modalInput}
                 value={selectedQuickUnit}
@@ -639,14 +749,14 @@ export default function TeamPage() {
                 await addShoppingItem(
                   selectedQuickSuggestion,
                   qty,
-                  selectedQuickUnit || "шт",
+                  selectedQuickUnit || t("units.pcs"),
                 );
                 setShowQuickAddModal(false);
                 setQuickText("");
               }}
             >
               <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-                Додати у список
+                {t("teamPage.addToList")}
               </ThemedText>
             </TouchableOpacity>
           </View>
@@ -662,7 +772,7 @@ export default function TeamPage() {
           />
           <View style={styles.sidebarPanel}>
             <ThemedText type="title" style={{ marginBottom: 12 }}>
-              Налаштування
+              {t("settings.title")}
             </ThemedText>
             <TouchableOpacity
               style={styles.sidebarItem}
@@ -676,7 +786,7 @@ export default function TeamPage() {
               }}
               accessibilityRole="button"
             >
-              <ThemedText>Редагувати команду</ThemedText>
+              <ThemedText>{t("teamPage.editTeam")}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.sidebarItem}
@@ -686,13 +796,13 @@ export default function TeamPage() {
                 setTimeout(() => router.push("/team-qr"), 120);
               }}
             >
-              <ThemedText>QR код команди</ThemedText>
+              <ThemedText>{t("teamPage.teamQrCode")}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.sidebarItem}
               onPress={() => setShowMembersInSidebar(!showMembersInSidebar)}
             >
-              <ThemedText>Учасники</ThemedText>
+              <ThemedText>{t("teamPage.members")}</ThemedText>
             </TouchableOpacity>
 
             {showMembersInSidebar ? (
@@ -726,7 +836,7 @@ export default function TeamPage() {
                           </ThemedText>
                           {m.lastSeen && (
                             <ThemedText style={{ color: "#666", fontSize: 12 }}>
-                              {`в мережі: ${m.lastSeen}`}
+                              {t("teamPage.onlineLabel", { time: m.lastSeen })}
                             </ThemedText>
                           )}
                         </View>
@@ -735,7 +845,8 @@ export default function TeamPage() {
                             <ThemedText
                               style={{
                                 color:
-                                  getParticipantRoleLabel(m) === "Адмін"
+                                  getParticipantRoleLabel(m) ===
+                                  t("teamPage.adminRole")
                                     ? "#007AFF"
                                     : "#444",
                                 fontSize: 11,
@@ -751,11 +862,12 @@ export default function TeamPage() {
                 ) : (
                   <View style={{ paddingVertical: 12 }}>
                     <ThemedText style={{ color: "#666" }}>
-                      У команді {team?.memberCount ?? participants.length}{" "}
-                      учасників.
+                      {t("teamPage.membersCount", {
+                        count: team?.memberCount ?? participants.length,
+                      })}
                     </ThemedText>
                     <ThemedText style={{ color: "#999", marginTop: 4 }}>
-                      Інформація про учасників недоступна.
+                      {t("teamPage.participantInfoUnavailable")}
                     </ThemedText>
                   </View>
                 )}
@@ -768,7 +880,7 @@ export default function TeamPage() {
               onPress={() => setSidebarOpen(false)}
             >
               <ThemedText style={{ color: "#007AFF", fontWeight: "700" }}>
-                Закрити
+                {t("common.close")}
               </ThemedText>
             </TouchableOpacity>
           </View>

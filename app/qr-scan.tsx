@@ -1,3 +1,4 @@
+import { useI18n } from "@/context/LanguageContext";
 import teamService from "@/src/services/teamService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -16,6 +17,7 @@ import {
 
 export default function QrScanPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanned, setIsScanned] = useState(false);
   const isPermissionGranted = Boolean(permission?.granted);
@@ -60,9 +62,9 @@ export default function QrScanPage() {
     const inviteCode = extractInviteCode(data);
 
     if (!inviteCode) {
-      Alert.alert("Помилка", "QR-код не містить коду запрошення", [
+      Alert.alert(t("common.error"), t("qrScan.noInviteInQr"), [
         {
-          text: "Спробувати ще раз",
+          text: t("qrScan.tryAgain"),
           onPress: () => setIsScanned(false),
         },
       ]);
@@ -72,31 +74,34 @@ export default function QrScanPage() {
     try {
       const result = await teamService.joinTeam(inviteCode);
 
-      Alert.alert("Успіх", `Ви приєдналися до команди "${result.teamName}"`, [
-        {
-          text: "Чудово",
-          onPress: async () => {
-            const nextTeamId = result.teamId ?? result.id;
-            if (nextTeamId != null) {
-              await AsyncStorage.setItem("view_team_id", String(nextTeamId));
-            }
-            router.replace("/team");
+      Alert.alert(
+        t("joinTeam.successTitle"),
+        t("joinTeam.successText", { teamName: result.teamName }),
+        [
+          {
+            text: t("joinTeam.successAction"),
+            onPress: async () => {
+              const nextTeamId = result.teamId ?? result.id;
+              if (nextTeamId != null) {
+                await AsyncStorage.setItem("view_team_id", String(nextTeamId));
+              }
+              router.replace("/team");
+            },
           },
-        },
-      ]);
+        ],
+      );
     } catch (e: any) {
       console.error(e);
 
       const status = e.response?.status;
-      let errorMessage = "Щось пішло не так. Спробуйте пізніше.";
+      let errorMessage = t("joinTeam.genericError");
 
       if (status === 404) {
-        errorMessage =
-          "Команду з таким кодом не знайдено. Перевірте правильність вводу.";
+        errorMessage = t("joinTeam.notFoundError");
       } else if (status === 409) {
-        errorMessage = "Ви вже є учасником цієї команди.";
+        errorMessage = t("joinTeam.conflictError");
       } else if (status === 400) {
-        errorMessage = "Невірний код інвайту.";
+        errorMessage = t("joinTeam.badRequestError");
       } else if (e.response?.data) {
         errorMessage =
           typeof e.response.data === "string"
@@ -104,9 +109,9 @@ export default function QrScanPage() {
             : e.response.data.message;
       }
 
-      Alert.alert("Помилка", errorMessage, [
+      Alert.alert(t("common.error"), errorMessage, [
         {
-          text: "Спробувати ще раз",
+          text: t("qrScan.tryAgain"),
           onPress: () => setIsScanned(false),
         },
       ]);
@@ -129,21 +134,21 @@ export default function QrScanPage() {
           />
 
           <View style={styles.hintBox}>
-            <Text style={styles.hintText}>
-              Наведіть камеру на QR код команди
-            </Text>
+            <Text style={styles.hintText}>{t("qrScan.hint")}</Text>
           </View>
         </>
       ) : (
         <View style={styles.permissionBox}>
           <Text style={styles.permissionText}>
-            Для сканування потрібен доступ до камери
+            {t("qrScan.permissionRequired")}
           </Text>
           <TouchableOpacity
             style={styles.permissionButton}
             onPress={requestPermission}
           >
-            <Text style={styles.permissionButtonText}>Надати доступ</Text>
+            <Text style={styles.permissionButtonText}>
+              {t("qrScan.permissionButton")}
+            </Text>
           </TouchableOpacity>
         </View>
       )}

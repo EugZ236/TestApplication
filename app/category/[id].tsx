@@ -7,14 +7,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  FlatList,
-  Image,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    FlatList,
+    Image,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -25,7 +25,7 @@ export default function CategoryProductsPage() {
   const params = useLocalSearchParams();
   const categoryId = Number(params.id);
   const providedName = String(params.name ?? "");
-  const { language } = useI18n();
+  const { t, language } = useI18n();
 
   const [team, setTeam] = useState<any | null>(null);
   const [products, setProducts] = useState<any[]>([]);
@@ -46,7 +46,7 @@ export default function CategoryProductsPage() {
         (fromProducts?.category?.nameUA ??
           fromProducts?.categoryName ??
           providedName) ||
-        "Категорія"
+        t("categoryPage.categoryDefault")
       );
     }
     const fromProducts = products.find(
@@ -74,7 +74,7 @@ export default function CategoryProductsPage() {
         setTeam(found);
       } catch (e) {
         console.error(e);
-        setTeamError("Не знайдено команду");
+        setTeamError(t("categoryPage.teamNotFound"));
       }
     })();
   }, []);
@@ -98,7 +98,7 @@ export default function CategoryProductsPage() {
         setError(null);
       } catch (e) {
         console.error(e);
-        setError("Не вдалося завантажити продукти");
+        setError(t("categoryPage.fetchFailed"));
       } finally {
         setLoading(false);
       }
@@ -111,7 +111,7 @@ export default function CategoryProductsPage() {
     unit: string,
   ) => {
     if (!team?.id) {
-      setError("Не знайдено команду");
+      setError(t("categoryPage.teamNotFound"));
       return;
     }
 
@@ -129,7 +129,7 @@ export default function CategoryProductsPage() {
               product.title ||
               product.productName ||
               product.nameUA
-          )?.trim() || (language === "uk" ? "Продукт" : "Product"),
+          )?.trim() || t("categoryPage.product"),
         quantity: qty,
         unit,
         category: providedName || categoryId?.toString() || "",
@@ -143,7 +143,7 @@ export default function CategoryProductsPage() {
       router.push("/shopping-list");
     } catch (e) {
       console.error("add product to shopping list", e);
-      setError("Не вдалося додати продукт до списку");
+      setError(t("categoryPage.addToCartFailed"));
     } finally {
       // no-op
     }
@@ -176,14 +176,14 @@ export default function CategoryProductsPage() {
             {displayedCategoryName}
           </ThemedText>
           <ThemedText style={{ color: "#666", marginTop: 4 }}>
-            {team?.name ?? "Команда"}
+            {team?.name ?? t("common.team")}
           </ThemedText>
         </View>
       </View>
 
       <View style={styles.searchWrap}>
         <TextInput
-          placeholder="Пошук продуктів..."
+          placeholder={t("categoryPage.searchPlaceholder")}
           value={q}
           onChangeText={setQ}
           style={styles.searchInput}
@@ -192,7 +192,7 @@ export default function CategoryProductsPage() {
 
       {loading ? (
         <View style={styles.loadingRow}>
-          <ThemedText>Завантаження...</ThemedText>
+          <ThemedText>{t("categoryPage.loading")}</ThemedText>
         </View>
       ) : error ? (
         <View style={styles.loadingRow}>
@@ -218,12 +218,12 @@ export default function CategoryProductsPage() {
                   item.name ??
                   item.title ??
                   item.productName ??
-                  "Продукт")
+                  t("categoryPage.product"))
                 : (item.name ??
                   item.title ??
                   item.productName ??
                   item.nameUA ??
-                  "Product");
+                  t("categoryPage.product"));
             const imageBase64 =
               typeof item.imageBase64 === "string" && item.imageBase64.trim()
                 ? item.imageBase64.trim()
@@ -259,7 +259,7 @@ export default function CategoryProductsPage() {
           ListEmptyComponent={() => (
             <View style={{ padding: 16 }}>
               <ThemedText style={{ color: "#999" }}>
-                Продукти не знайдені
+                {t("categoryPage.productsNotFound")}
               </ThemedText>
             </View>
           )}
@@ -272,7 +272,7 @@ export default function CategoryProductsPage() {
           onPress={() => router.push("/shopping-list")}
         >
           <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-            + Додати свій продукт
+            {t("categoryPage.addCustomProduct")}
           </ThemedText>
         </TouchableOpacity>
       </View>
@@ -289,18 +289,20 @@ export default function CategoryProductsPage() {
                   ? (selectedProduct.nameUA ??
                     selectedProduct.name ??
                     selectedProduct.title ??
-                    "Продукт")
+                    t("categoryPage.product"))
                   : (selectedProduct.name ??
                     selectedProduct.title ??
                     selectedProduct.nameUA ??
-                    "Product")}
+                    t("categoryPage.product"))}
               </ThemedText>
             </View>
             <ThemedText style={{ marginTop: 8, color: "#444" }}>
-              Категорія: {displayedCategoryName}
+              {t("categoryPage.categoryLabel")}: {displayedCategoryName}
             </ThemedText>
             <View style={{ marginTop: 12 }}>
-              <ThemedText style={styles.formLabel}>Кількість</ThemedText>
+              <ThemedText style={styles.formLabel}>
+                {t("categoryPage.quantityLabel")}
+              </ThemedText>
               <TextInput
                 style={styles.qtyInput}
                 value={productQty}
@@ -309,7 +311,9 @@ export default function CategoryProductsPage() {
               />
             </View>
             <View style={{ marginTop: 8 }}>
-              <ThemedText style={styles.formLabel}>Одиниця</ThemedText>
+              <ThemedText style={styles.formLabel}>
+                {t("categoryPage.unitLabel")}
+              </ThemedText>
               <TextInput
                 style={styles.qtyInput}
                 value={productUnit}
@@ -324,7 +328,7 @@ export default function CategoryProductsPage() {
               }}
             >
               <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-                Додати до кошику
+                {t("categoryPage.addToCart")}
               </ThemedText>
             </TouchableOpacity>
           </View>

@@ -57,18 +57,18 @@ type CategoryOption = {
   name: string;
 };
 
-const FALLBACK_CATEGORY_OPTIONS: CategoryOption[] = [
-  { id: null, name: "Овочі та фрукти" },
-  { id: null, name: "Молочні продукти" },
-  { id: null, name: "Мʼясо" },
-  { id: null, name: "Риба" },
-  { id: null, name: "Напої" },
-];
-
 export default function ShoppingListPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { language } = useI18n();
+  const { t, language } = useI18n();
+
+  const FALLBACK_CATEGORY_OPTIONS: CategoryOption[] = [
+    { id: null, name: t("shoppingList.fallback.vegetables") },
+    { id: null, name: t("shoppingList.fallback.dairy") },
+    { id: null, name: t("shoppingList.fallback.meat") },
+    { id: null, name: t("shoppingList.fallback.fish") },
+    { id: null, name: t("shoppingList.fallback.drinks") },
+  ];
   const [team, setTeam] = useState<any | null>(null);
   const [items, setItems] = useState<ShoppingListItem[]>([]);
   const [participants, setParticipants] = useState<TeamMember[]>([]);
@@ -99,7 +99,7 @@ export default function ShoppingListPage() {
       return parts.join(" ");
     }
 
-    return "Учасник";
+    return t("common.member");
   };
 
   const normalizeImageUri = (image?: string | null) => {
@@ -187,6 +187,8 @@ export default function ShoppingListPage() {
             prod?.imageBase64 && typeof prod.imageBase64 === "string"
               ? prod.imageBase64.trim()
               : (item.productImage ?? null),
+          name: item.name ?? prod?.name ?? null,
+          nameUA: item.nameUA || prod?.nameUA || null,
           catalogName: prod?.name ?? null,
           catalogNameUA: prod?.nameUA ?? null,
         };
@@ -208,9 +210,13 @@ export default function ShoppingListPage() {
         id: Number(item.id),
         teamId,
         productId: item.productId ?? item.globalProductId ?? null,
-        name: item.name ?? item.customName ?? item.productName ?? "Продукт",
+        name:
+          item.name ??
+          item.customName ??
+          item.productName ??
+          t("common.product"),
         quantity: Number(item.quantity ?? 1),
-        unit: item.unit ?? "шт",
+        unit: item.unit ?? t("units.pcs"),
         category: item.category ?? "",
         note: item.note ?? "",
         price: item.price ?? item.pricePerUnit ?? null,
@@ -238,9 +244,9 @@ export default function ShoppingListPage() {
     return {
       teamId: Number(team?.id),
       productId: merged.productId ?? null,
-      name: merged.name ?? "Продукт",
+      name: merged.name ?? t("common.product"),
       quantity: Number(merged.quantity ?? 1),
-      unit: merged.unit ?? "шт",
+      unit: merged.unit ?? t("units.pcs"),
       category: merged.category ?? "",
       note: merged.note ?? null,
       isBought: Boolean(merged.isBought),
@@ -286,7 +292,7 @@ export default function ShoppingListPage() {
       });
     } catch (error) {
       console.error("Не вдалося оновити статус покупки", error);
-      Alert.alert("Помилка", "Не вдалося оновити статус покупки");
+      Alert.alert(t("common.error"), t("shoppingList.updateStatusFailed"));
     } finally {
       setCheckboxLoading(item.id, false);
     }
@@ -309,7 +315,7 @@ export default function ShoppingListPage() {
       await loadData(Number(team.id));
     } catch (error) {
       console.error("Не вдалося оновити відповідального", error);
-      Alert.alert("Помилка", "Не вдалося змінити відповідального");
+      Alert.alert(t("common.error"), t("shoppingList.updateAssigneeFailed"));
     }
   };
 
@@ -433,7 +439,7 @@ export default function ShoppingListPage() {
   const [categories, setCategories] = React.useState<CategoryOption[]>(
     FALLBACK_CATEGORY_OPTIONS,
   );
-  const units = ["шт", "кг", "мл"];
+  const units = [t("units.pcs"), t("units.kg"), t("units.ml")];
   type FormState = {
     name: string;
     nameUA: string;
@@ -507,21 +513,18 @@ export default function ShoppingListPage() {
     const englishName = Form.name.trim();
     const ukrainianName = Form.nameUA.trim();
     if (editingId == null && (!englishName || !ukrainianName)) {
-      Alert.alert(
-        "Помилка",
-        "Вкажіть назву товару англійською (name) і українською (nameUA)",
-      );
+      Alert.alert(t("common.error"), t("shoppingList.missingNames"));
       return;
     }
 
     const shoppingItemName = ukrainianName || englishName;
     if (!shoppingItemName) {
-      Alert.alert("Помилка", "Вкажіть назву товару");
+      Alert.alert(t("common.error"), t("shoppingList.missingName"));
       return;
     }
 
     if (!team?.id) {
-      Alert.alert("Помилка", "Не вдалося визначити команду");
+      Alert.alert(t("common.error"), t("shoppingList.noTeam"));
       return;
     }
 
@@ -551,8 +554,8 @@ export default function ShoppingListPage() {
         if (Form.imageBase64) {
           if (resolvedCategoryId == null) {
             Alert.alert(
-              "Помилка",
-              "Щоб відправити фото, оберіть категорію із завантаженого списку.",
+              t("common.error"),
+              t("shoppingList.selectCategoryForPhoto"),
             );
             return;
           }
@@ -569,13 +572,13 @@ export default function ShoppingListPage() {
             const statusCode = Number(error?.response?.status ?? 0);
             if (statusCode === 409) {
               Alert.alert(
-                "Такий продукт вже існує",
-                "Змініть назву або приберіть фото, якщо хочете додати позицію лише в список покупок.",
+                t("shoppingList.productExistsTitle"),
+                t("shoppingList.productExistsText"),
               );
             } else {
               Alert.alert(
-                "Помилка",
-                "Не вдалося відправити фото продукту. Спробуйте ще раз.",
+                t("common.error"),
+                t("shoppingList.productPhotoUploadFailed"),
               );
             }
             return;
@@ -603,7 +606,7 @@ export default function ShoppingListPage() {
       resetForm();
     } catch (error) {
       console.error("Не вдалося зберегти товар", error);
-      Alert.alert("Помилка", "Не вдалося зберегти товар");
+      Alert.alert(t("common.error"), t("shoppingList.saveFailed"));
     }
   }
 
@@ -616,10 +619,7 @@ export default function ShoppingListPage() {
         await shoppingListService.deleteItem(item.id);
       } catch (error) {
         console.error("Не вдалося видалити товар з сервера", error);
-        Alert.alert(
-          "Помилка",
-          "Не вдалося видалити товар з сервера. Спробуйте ще раз.",
-        );
+        Alert.alert(t("common.error"), t("shoppingList.deleteFailed"));
         return;
       }
     }
@@ -631,21 +631,25 @@ export default function ShoppingListPage() {
   }
 
   function confirmDelete() {
-    Alert.alert("Видалити позицію", "Ви впевнені?", [
-      { text: "Скасувати", style: "cancel" },
-      {
-        text: "Видалити",
-        style: "destructive",
-        onPress: () => {
-          if (editingId != null) {
-            const indexToRemove = items.findIndex((i) => i.id === editingId);
-            if (indexToRemove >= 0) {
-              void removeItem(indexToRemove);
+    Alert.alert(
+      t("shoppingList.deleteConfirmTitle"),
+      t("shoppingList.deleteConfirmText"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("common.delete"),
+          style: "destructive",
+          onPress: () => {
+            if (editingId != null) {
+              const indexToRemove = items.findIndex((i) => i.id === editingId);
+              if (indexToRemove >= 0) {
+                void removeItem(indexToRemove);
+              }
             }
-          }
+          },
         },
-      },
-    ]);
+      ],
+    );
   }
 
   function incQty() {
@@ -702,8 +706,8 @@ export default function ShoppingListPage() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert(
-        "Доступ заборонено",
-        "Дозвольте доступ до галереї, щоб додати фото продукту.",
+        t("shoppingList.permissionDeniedTitle"),
+        t("shoppingList.permissionDeniedText"),
       );
       return;
     }
@@ -721,7 +725,7 @@ export default function ShoppingListPage() {
 
     const selected = result.assets?.[0];
     if (!selected?.base64) {
-      Alert.alert("Помилка", "Не вдалося обробити фото.");
+      Alert.alert(t("common.error"), t("shoppingList.photoProcessingFailed"));
       return;
     }
 
@@ -748,10 +752,10 @@ export default function ShoppingListPage() {
     return (
       <View style={styles.emptyWrap}>
         <ThemedText style={{ color: "#999" }}>
-          Поки що нічого не додано
+          {t("shoppingList.emptyTitle")}
         </ThemedText>
         <ThemedText style={{ color: "#999", marginTop: 8 }}>
-          Натисніть +, щоб створити перший елемент
+          {t("shoppingList.emptyHint")}
         </ThemedText>
       </View>
     );
@@ -764,14 +768,14 @@ export default function ShoppingListPage() {
           onPress={() => router.back()}
           style={styles.back}
           hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-          accessibilityLabel="Назад"
+          accessibilityLabel={t("common.back")}
           accessibilityRole="button"
         >
           <ThemedText style={{ fontSize: 20 }}>←</ThemedText>
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: "center" }}>
           <ThemedText type="title" style={styles.title}>
-            Team: {team?.name ?? "Family"}
+            {t("teams.infoTitle")}: {team?.name ?? t("common.team")}
           </ThemedText>
         </View>
         <View style={styles.headerRight} />
@@ -779,17 +783,17 @@ export default function ShoppingListPage() {
 
       <View style={styles.metaRow}>
         <ThemedText style={styles.metaText}>
-          {team?.name ?? "Команда"}
+          {team?.name ?? t("common.team")}
         </ThemedText>
         <ThemedText style={styles.metaText}>
           {" "}
-          • {items.length} товарів
+          • {items.length} {t("shoppingList.items")}
         </ThemedText>
       </View>
 
       <View style={styles.searchWrap}>
         <TextInput
-          placeholder="Знайти у списку..."
+          placeholder={t("shoppingList.searchPlaceholder")}
           value={query}
           onChangeText={setQuery}
           style={styles.searchInput}
@@ -827,16 +831,16 @@ export default function ShoppingListPage() {
                   authUser?.id != null &&
                   String(item.assignedToUserId) === String(authUser.id);
                 const buyerName = !hasAssignee
-                  ? "Не призначено"
+                  ? t("shoppingList.unassigned")
                   : member?.id != null
                     ? getParticipantFullName(member)
                     : isAssignedToMe
                       ? getParticipantFullName(authUser as TeamMember)
-                      : "Учасник";
+                      : t("common.member");
                 const assigneeAvatar = normalizeImageUri(
                   member?.avatar ?? item.assignedToAvatar ?? item.buyerAvatar,
                 );
-                const assigneeInitial = (buyerName || "У")
+                const assigneeInitial = (buyerName || t("common.member"))
                   .charAt(0)
                   .toUpperCase();
                 const productImageSource = normalizeImageUri(item.productImage);
@@ -846,11 +850,11 @@ export default function ShoppingListPage() {
                     ? (item.catalogNameUA ??
                       item.name ??
                       item.catalogName ??
-                      "Продукт")
+                      t("common.product"))
                     : (item.name ??
                       item.catalogName ??
                       item.catalogNameUA ??
-                      "Product");
+                      t("common.product"));
 
                 return (
                   <TouchableOpacity
@@ -877,7 +881,7 @@ export default function ShoppingListPage() {
                           {displayName}
                         </ThemedText>
                         <ThemedText style={styles.productSubNew}>
-                          Купити: {buyerName}
+                          {t("shoppingList.buyLabel")}: {buyerName}
                         </ThemedText>
                         {item.note?.trim() ? (
                           <View style={styles.commentRow}>
@@ -896,7 +900,9 @@ export default function ShoppingListPage() {
                           <TouchableOpacity
                             style={styles.assigneeCircle}
                             onPress={() => showBuyerMenu(idx)}
-                            accessibilityLabel="Відповідальний за покупку"
+                            accessibilityLabel={t(
+                              "shoppingList.assigneeAccessibility",
+                            )}
                             accessibilityRole="button"
                           >
                             {assigneeAvatar ? (
@@ -958,7 +964,9 @@ export default function ShoppingListPage() {
                         >
                           <Text style={styles.qtyBtnText}>+</Text>
                         </TouchableOpacity>
-                        <Text style={styles.unitText}>{item.unit ?? "шт"}</Text>
+                        <Text style={styles.unitText}>
+                          {item.unit ?? t("units.pcs")}
+                        </Text>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -975,12 +983,12 @@ export default function ShoppingListPage() {
         <View style={styles.bottomButtonsRow}>
           <TouchableOpacity style={styles.catalogBtn} onPress={openCatalog}>
             <ThemedText style={{ color: "#2F80ED", fontWeight: "700" }}>
-              Каталог
+              {t("shoppingList.catalogButton")}
             </ThemedText>
           </TouchableOpacity>
           <TouchableOpacity style={styles.openListBtn} onPress={openCreate}>
             <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-              + Додати свій продукт
+              {t("shoppingList.addCustomProduct")}
             </ThemedText>
           </TouchableOpacity>
         </View>
@@ -1022,7 +1030,7 @@ export default function ShoppingListPage() {
               >
                 <View style={styles.sheetHeader}>
                   <ThemedText type="title">
-                    {Form.nameUA || Form.name || "Нова позиція"}
+                    {Form.nameUA || Form.name || t("shoppingList.newItem")}
                   </ThemedText>
                   <Pressable onPress={confirmDelete} style={styles.trashBtn}>
                     <Text style={{ color: "#FF6B6B", fontSize: 18 }}>🗑️</Text>
@@ -1030,7 +1038,7 @@ export default function ShoppingListPage() {
                 </View>
 
                 <TextInput
-                  placeholder="Назва товару англійською (name)"
+                  placeholder={t("shoppingList.placeholderNameEn")}
                   value={Form.name}
                   onChangeText={(v) => setFormField("name", v)}
                   style={styles.titleInput}
@@ -1039,7 +1047,7 @@ export default function ShoppingListPage() {
                 />
 
                 <TextInput
-                  placeholder="Назва товару українською (nameUA)"
+                  placeholder={t("shoppingList.placeholderNameUk")}
                   value={Form.nameUA}
                   onChangeText={(v) => setFormField("nameUA", v)}
                   style={styles.titleInput}
@@ -1093,7 +1101,9 @@ export default function ShoppingListPage() {
                 </View>
 
                 <View style={styles.formRow}>
-                  <ThemedText style={styles.formLabel}>КІЛЬКІСТЬ</ThemedText>
+                  <ThemedText style={styles.formLabel}>
+                    {t("shoppingList.quantityLabel")}
+                  </ThemedText>
                   <View style={styles.qtyRow}>
                     <TouchableOpacity style={styles.qtyBtn} onPress={decQty}>
                       <ThemedText>-</ThemedText>
@@ -1147,7 +1157,9 @@ export default function ShoppingListPage() {
 
                 <View style={styles.formRowTwo}>
                   <View style={{ flex: 1 }}>
-                    <ThemedText style={styles.formLabel}>ХТО КУПИТЬ</ThemedText>
+                    <ThemedText style={styles.formLabel}>
+                      {t("shoppingList.whoBuys")}
+                    </ThemedText>
                     <TouchableOpacity
                       style={styles.selectInput}
                       onPress={openAssigneePickerForForm}
@@ -1157,26 +1169,29 @@ export default function ShoppingListPage() {
                           ? authUser?.id != null &&
                             String(Form.assignedToUserId) ===
                               String(authUser.id)
-                            ? "Я"
+                            ? t("common.me")
                             : getParticipantFullName(
                                 participants.find(
                                   (p) =>
                                     String(p.id) ===
                                     String(Form.assignedToUserId),
-                                ) ?? ({ firstName: "Учасник" } as TeamMember),
+                                ) ??
+                                  ({
+                                    firstName: t("common.member"),
+                                  } as TeamMember),
                               )
-                          : "Не призначено"}
+                          : t("shoppingList.unassigned")}
                       </ThemedText>
                     </TouchableOpacity>
                   </View>
                 </View>
 
                 <ThemedText style={[styles.formLabel, { marginTop: 12 }]}>
-                  КОМЕНТАР
+                  {t("shoppingList.commentLabel")}
                 </ThemedText>
                 <TextInput
                   style={styles.commentInput}
-                  placeholder="Напр: Тільки свіжу, не миту..."
+                  placeholder={t("shoppingList.notePlaceholder")}
                   value={Form.note}
                   onChangeText={(v) => setFormField("note", v)}
                   multiline
@@ -1185,7 +1200,7 @@ export default function ShoppingListPage() {
                 {editingId == null ? (
                   <View style={styles.formRow}>
                     <ThemedText style={styles.formLabel}>
-                      ФОТО ПРОДУКТУ (ОПЦІЙНО)
+                      {t("shoppingList.photoLabelOptional")}
                     </ThemedText>
                     <View style={styles.photoActionsRow}>
                       <TouchableOpacity
@@ -1193,7 +1208,9 @@ export default function ShoppingListPage() {
                         onPress={pickProductPhoto}
                       >
                         <ThemedText style={styles.photoSelectButtonText}>
-                          {Form.imageBase64 ? "Змінити фото" : "Додати фото"}
+                          {Form.imageBase64
+                            ? t("shoppingList.changePhoto")
+                            : t("shoppingList.addPhoto")}
                         </ThemedText>
                       </TouchableOpacity>
                       {Form.imageBase64 ? (
@@ -1202,7 +1219,7 @@ export default function ShoppingListPage() {
                           onPress={clearProductPhoto}
                         >
                           <ThemedText style={styles.photoRemoveButtonText}>
-                            Прибрати
+                            {t("shoppingList.removePhoto")}
                           </ThemedText>
                         </TouchableOpacity>
                       ) : null}
@@ -1220,7 +1237,9 @@ export default function ShoppingListPage() {
 
                 <TouchableOpacity style={styles.saveBtn} onPress={saveItem}>
                   <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-                    {editingId == null ? "Додати продукт" : "Зберегти зміни"}
+                    {editingId == null
+                      ? t("shoppingList.addProduct")
+                      : t("shoppingList.saveChanges")}
                   </ThemedText>
                 </TouchableOpacity>
               </ScrollView>
@@ -1244,7 +1263,9 @@ export default function ShoppingListPage() {
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.assigneeModalHeader}>
-              <ThemedText type="title">Хто купить?</ThemedText>
+              <ThemedText type="title">
+                {t("shoppingList.assigneeModalTitle")}
+              </ThemedText>
               <TouchableOpacity
                 style={styles.assigneeCloseBtn}
                 onPress={() => setAssigneePickerVisible(false)}
@@ -1261,7 +1282,9 @@ export default function ShoppingListPage() {
               {participants.map((member: TeamMember) => {
                 const memberName = getParticipantFullName(member);
                 const avatarUri = normalizeImageUri(member.avatar);
-                const initial = (memberName || "У").charAt(0).toUpperCase();
+                const initial = (memberName || t("common.member"))
+                  .charAt(0)
+                  .toUpperCase();
                 const isSelected = assigneePickerForForm
                   ? String(Form.assignedToUserId || "") ===
                     String(member.id || "")

@@ -9,15 +9,15 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const TEAM_STORAGE_KEY = "teams_v1";
@@ -25,7 +25,7 @@ const VIEW_TEAM_KEY = "view_team_id";
 
 export default function AddProductPage() {
   const router = useRouter();
-  const { language } = useI18n();
+  const { t, language } = useI18n();
   const [team, setTeam] = useState<any | null>(null);
   const [categories, setCategories] = useState<
     { id: number; name: string; imageBase64?: string }[]
@@ -91,7 +91,7 @@ export default function AddProductPage() {
         setError(null);
       } catch (e) {
         console.error("fetch categories", e);
-        setError("Не вдалося завантажити категорії");
+        setError(t("addProductPage.fetchCategoriesFailed"));
       } finally {
         setLoading(false);
       }
@@ -112,7 +112,7 @@ export default function AddProductPage() {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (perm.status !== "granted") {
-        showToast.error("Потрібен доступ до медіа бібліотеки");
+        showToast.error(t("addProductPage.permissionDenied"));
         return;
       }
 
@@ -143,21 +143,24 @@ export default function AddProductPage() {
       } else if (uri) {
         setPreviewUri(uri);
         showToast.info(
-          "Зображення вибране. Воно буде відправлене як URI, якщо сервер дозволяє.",
+          t("common.success"),
+          t("addProductPage.imageSelectedInfo"),
         );
       }
     } catch (e) {
       console.error("pickImage", e);
-      showToast.error("Не вдалось вибрати зображення");
+      showToast.error(t("addProductPage.imagePickFailed"));
     }
   };
 
   const handleSubmit = async () => {
-    if (!name.trim()) return showToast.error("Введіть назву англійською");
-    if (!nameUA.trim()) return showToast.error("Введіть назву українською");
-    if (!defaultUnit) return showToast.error("Оберіть одиницю виміру");
-    if (!imageBase64) return showToast.error("Додайте зображення продукту");
-    if (!selectedCategoryId) return showToast.error("Оберіть категорію");
+    if (!name.trim()) return showToast.error(t("addProductPage.enterNameEn"));
+    if (!nameUA.trim()) return showToast.error(t("addProductPage.enterNameUk"));
+    if (!defaultUnit) return showToast.error(t("addProductPage.chooseUnit"));
+    if (!imageBase64)
+      return showToast.error(t("addProductPage.addProductImage"));
+    if (!selectedCategoryId)
+      return showToast.error(t("addProductPage.chooseCategory"));
 
     try {
       setSubmitting(true);
@@ -170,14 +173,17 @@ export default function AddProductPage() {
       } as any;
 
       const id = await productService.createProduct(payload);
-      showToast.success("Продукт створено");
+      showToast.success(
+        t("common.success"),
+        t("addProductPage.createdSuccessText"),
+      );
       setIsModalOpen(false);
       router.push(
         `/category/${selectedCategoryId}?name=${encodeURIComponent(categories.find((c) => c.id === selectedCategoryId)?.name ?? "")}`,
       );
     } catch (e) {
       console.error("create product", e);
-      showToast.error("Помилка", "Не вдалося створити продукт");
+      showToast.error(t("common.error"), t("addProductPage.createFailedText"));
     } finally {
       setSubmitting(false);
     }
@@ -191,28 +197,30 @@ export default function AddProductPage() {
         </TouchableOpacity>
         <View>
           <ThemedText type="title" style={styles.title}>
-            Каталог
+            {t("addProductPage.title")}
           </ThemedText>
           <ThemedText style={styles.subtitle}>
-            Team: {team?.name ?? "Family"}
+            {t("teams.infoTitle")}: {team?.name ?? t("common.team")}
           </ThemedText>
         </View>
       </View>
 
       <View style={styles.searchWrap}>
         <TextInput
-          placeholder="Пошук (наприклад: Молоко)..."
+          placeholder={t("addProductPage.searchPlaceholder")}
           style={styles.searchInput}
         />
       </View>
 
       <View style={styles.sectionHeader}>
-        <ThemedText style={styles.sectionLabel}>ВСІ КАТЕГОРІЇ</ThemedText>
+        <ThemedText style={styles.sectionLabel}>
+          {t("addProductPage.allCategories")}
+        </ThemedText>
       </View>
 
       {loading ? (
         <View style={{ padding: 16 }}>
-          <ThemedText>Завантаження категорій...</ThemedText>
+          <ThemedText>{t("addProductPage.loadingCategories")}</ThemedText>
         </View>
       ) : error ? (
         <View style={{ padding: 16 }}>
@@ -256,14 +264,16 @@ export default function AddProductPage() {
 
       <View style={styles.bottomBar}>
         <View style={styles.cartBtn}>
-          <Text style={{ fontWeight: "700" }}>🛒 У кошик</Text>
+          <Text style={{ fontWeight: "700" }}>
+            {t("addProductPage.cartLabel")}
+          </Text>
           <View style={styles.badge}>
             <Text style={{ color: "#fff", fontSize: 12 }}>2</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={openModal}>
           <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-            + Додати свій продукт
+            {t("addProductPage.addCustomProduct")}
           </ThemedText>
         </TouchableOpacity>
       </View>
@@ -271,29 +281,33 @@ export default function AddProductPage() {
         <View style={styles.modalWrapper}>
           <View style={styles.modalCard}>
             <ScrollView>
-              <ThemedText type="title">Додати свій продукт</ThemedText>
+              <ThemedText type="title">
+                {t("addProductPage.modalTitle")}
+              </ThemedText>
 
               <ThemedText style={{ marginTop: 10 }}>
-                Назва (англійською)
+                {t("addProductPage.nameLabelEn")}
               </ThemedText>
               <TextInput
                 value={name}
                 onChangeText={setName}
                 style={styles.titleInput}
-                placeholder="e.g. Milk"
+                placeholder={t("addProductPage.namePlaceholderEn")}
               />
 
               <ThemedText style={{ marginTop: 10 }}>
-                Назва (українською)
+                {t("addProductPage.nameLabelUk")}
               </ThemedText>
               <TextInput
                 value={nameUA}
                 onChangeText={setNameUA}
                 style={styles.titleInput}
-                placeholder="наприклад: Молоко"
+                placeholder={t("addProductPage.namePlaceholderUk")}
               />
 
-              <ThemedText style={{ marginTop: 10 }}>Одиниця виміру</ThemedText>
+              <ThemedText style={{ marginTop: 10 }}>
+                {t("addProductPage.unitLabel")}
+              </ThemedText>
               <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                 {["g", "kg", "l", "ml"].map((u) => (
                   <TouchableOpacity
@@ -313,7 +327,9 @@ export default function AddProductPage() {
                 ))}
               </View>
 
-              <ThemedText style={{ marginTop: 12 }}>Категорія</ThemedText>
+              <ThemedText style={{ marginTop: 12 }}>
+                {t("addProductPage.categoryLabel")}
+              </ThemedText>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -352,7 +368,9 @@ export default function AddProductPage() {
                 ))}
               </ScrollView>
 
-              <ThemedText style={{ marginTop: 12 }}>Зображення</ThemedText>
+              <ThemedText style={{ marginTop: 12 }}>
+                {t("addProductPage.imageLabel")}
+              </ThemedText>
               <TouchableOpacity
                 onPress={pickImage}
                 style={{ marginTop: 8, alignItems: "center" }}
@@ -373,7 +391,7 @@ export default function AddProductPage() {
                       alignItems: "center",
                     }}
                   >
-                    <Text>Вибрати фото</Text>
+                    <Text>{t("addProductPage.pickPhoto")}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -387,7 +405,7 @@ export default function AddProductPage() {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
-                    Зберегти
+                    {t("common.save")}
                   </ThemedText>
                 )}
               </TouchableOpacity>
@@ -397,7 +415,7 @@ export default function AddProductPage() {
                 style={[styles.saveBtn, { backgroundColor: "#ccc" }]}
               >
                 <ThemedText style={{ color: "#000", fontWeight: "700" }}>
-                  Скасувати
+                  {t("common.cancel")}
                 </ThemedText>
               </TouchableOpacity>
             </ScrollView>

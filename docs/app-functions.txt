@@ -1,0 +1,186 @@
+Повний перелік функцій застосунку (зі скану коду)
+
+Джерела: файли у `app/`, `src/services/`, `services/`, `backend controllers/`, `utils/`.
+
+1) Аутентифікація та сесія
+- Реєстрація користувача з полями: `firstName`, `lastName`, `email`, `password`.
+- Під час реєстрації передається `deviceToken` (реєстрація пристрою для пушів).
+- Логін (email + password) — отримання JWT токена та збереження в SecureStore.
+- Логаут — видалення токена та локального профілю.
+- Збереження / читання токена та користувача в/з захищеного сховища (`SecureStore`).
+- Розбір JWT для визначення `sub` / user id у клієнті.
+- Обробка 401 в Axios interceptor: очистка токена та редірект на `/login`.
+
+2) Профіль і налаштування користувача
+- Отримати ім'я користувача (GET `/api/Users/name`).
+- Отримати фото профілю (GET `/api/Users/photo`).
+- Зберегти фото профілю (PUT `/api/Users/photo`) — фото у форматі Base64.
+- Видалити фото профілю (DELETE `/api/Users/photo`).
+- Додавання / отримання / заміна / видалення дієтичних вподобань (GET/POST/PUT/DELETE `/api/Users/preferences`).
+- Встановлення/зміна фото через вибір із галереї (expo-image-picker) з конвертацією в Base64.
+- Тема додатку (system/light/dark) та зміна мови (укр/англ) у `Settings`.
+
+3) Команди (Team) та запрошення
+- Перелік команд користувача (GET `/api/Teams`).
+- Створити команду (POST `/api/Teams`) — створює команду і повертає id/inviteCode.
+- При створенні команди можливе створення початкового бюджету (виклик `budgetService.createBudget`).
+- Приєднатися за кодом інвайту (POST `/api/Teams/join`).
+- Приєднатися по QR: сканування QR → парсинг `code` або raw → виклик joinTeam.
+- Показ QR коду команди (генерація URI через `buildTeamInviteQrUri` -> https://api.qrserver.com).
+- Копіювання коду запрошення в буфер (Clipboard) та шаринг (Share) лінку.
+- Деталі команди — GET `/api/Teams/{id}` (деталі, учасники, роль).
+- Редагувати команду (PUT `/api/Teams/{id}`).
+- Видалити команду (DELETE `/api/Teams/{id}`).
+- Отримати список учасників (виклик клієнта `/api/Teams/{teamId}/participants` у `teamService.getParticipants`).
+- Локальне кешування списку команд у `AsyncStorage` (`teams_v1`) та збереження поточної команди `view_team_id`.
+- Публічні дії в UI: створити команду, приєднатись по коду, приєднатись через QR, поділитися кодом, скопіювати код.
+
+4) Списки покупок (Shopping Lists)
+- Отримати елементи списку для команди: GET `api/lists/items/team/{teamId}`.
+- Створити елемент списку: POST `api/lists/items`.
+- Оновити елемент: PUT `api/lists/items/{id}` (кількість, одиниця, assignedToUserId, isBought, note тощо).
+- Видалити елемент: DELETE `api/lists/items/{id}`.
+- Завершити шопінг (archive/finish): POST `api/lists/items/teams/{teamId}/finish-shopping`.
+- UI-функції списків: перегляд повного списку, швидке додавання (quick add), редагування позиції, видалення, призначення відповідального, відмітка як куплено, інк/дек кількості, коментарі до позицій.
+- Додавання позиції з фото — завантаження фото (base64) та (за потреби) створення нового продукту через `productService.createProduct`.
+- Каталог продуктів і додавання з каталогу у список.
+
+5) Продукти та категорії
+- Пошук глобальних продуктів: GET `api/products/search?q=` (клієнтська автодоповідь у пошуку).
+- Отримати продукт по id: GET `/api/Products/{id}`.
+- Створити продукт (постінг з imageBase64): POST `/api/Products`.
+- Оновити / видалити продукт: PUT/DELETE `/api/Products/{id}`.
+- Категорії: GET `/api/Categories`, GET `/api/Categories/{id}`, POST `/api/Categories`, PUT `/api/Categories/{id}`, DELETE `/api/Categories/{id}`.
+- UI: Каталог за категоріями, сторінка категорії (`/category/[id]`) — перегляд плиток продуктів, додати продукт у список з вибором кількості/одиниці.
+
+6) Повідомлення (Push / Firebase)
+- Отримання токена пушів на клієнті: намагається використати `@react-native-firebase/messaging` для FCM, fallback — `expo-notifications` (Expo push token).
+- Під час реєстрації відправляється `deviceToken` на бекенд (AuthController зберігає у `UserDevices`).
+- Сервер: `NotificationController` використовує `FirebaseAdmin.Messaging` та `SendEachForMulticastAsync` для розсилки multicast.
+- Клієнтський сервіс `notificationService` має два методи: `sendGroupNotification` (POST `/api/Notification/send-group`) і `sendMemberNotification` (POST `/api/Notification/send-member`) — (клієнт очікує ці маршрути для відправки повідомлень).
+- UI: після приєднання до команди надсилається групове повідомлення про нового учасника.
+
+7) Реальний час (SignalR)
+- Hub URL: `${baseURL}/hubs/shopping-list` (підключення через `ShoppingListSignalRService.connect(token, teamId)`).
+- Повідомлення хаба обробляються клієнтом: `ItemAdded`, `ItemUpdated`, `ItemRemoved` — відповідні колбеки `onItemAdded`, `onItemUpdated`, `onItemRemoved`.
+- Підтримка автоматичного reconnect, onreconnecting/onreconnected/onclose, accessTokenFactory для авторизації хаба.
+
+8) Локальне сховище, кеш і fallback
+- `AsyncStorage` використовується для: `teams_v1`, `view_team_id`, `shopping_{teamId}`, `create_context`, `budget_v1` (fallback) тощо.
+- `SecureStore` використовується для збереження `auth_token` і `auth_user` (більш захищено на мобільних платформах).
+
+9) UI / UX функції та сторінки (з файлів `app/`)
+- `register.tsx` — реєстрація (отримання push-token) -> перехід на `welcome`.
+- `login.tsx` — логін, соціальні кнопки (заглушки), форми, валідація паролю/email.
+- `welcome.tsx` — вибір: створити команду або приєднатись за кодом.
+- `onboarding.tsx` — серія екранів ознайомлення, збереження `onboarding_completed`.
+- `create-team.tsx` — створення команди + створення початкового бюджету (якщо введено).
+- `join-team.tsx` — приєднання по коду, кнопка "Приєднатися по QR" -> `/qr-scan`.
+- `qr-scan.tsx` — сканер QR (expo-camera CameraView), парсинг коду/URL, приєднання до команди.
+- `team.tsx` — сторінка команди: прев'ю списку покупок, швидке додавання, показ бюджету, підключення SignalR, бічна панель з опціями (редагувати, показати QR, учасники).
+- `team-qr.tsx` — показ QR коду запрошення (генерується URI через `buildTeamInviteQrUri`).
+- `shopping-list.tsx` — повний інтерфейс списку покупок: створення/редагування/видалення/призначення/відмітка куплено, фото продукту, загрузка фото в Base64, інтеграція з каталогом.
+- `add-product.tsx` — каталог, створення продукту з фото та категорією.
+- `category/[id].tsx` — перегляд продуктів у категорії, додати продукт у список.
+- `edit-team.tsx` — редагування назви команди.
+- `team-budget.tsx` — показ поточного бюджету команди (витрати / ліміт, pie chart по категоріях).
+- `(tabs)` — таби: Teams / Explore(redirect->qr-scan) / Budget / Profile.
+- `profile` (tabs) — показ і редагування фото, показ дієтичних вподобань.
+- `settings.tsx` — налаштування теми, мови, дієтичних вподобань, оновлення/видалення фото, пункт "Notifications" (UI), логаут.
+- `logout.tsx` — підтвердження виходу з акаунта.
+
+10) Клієнтські сервіси (методи і їх очікувані ендпоінти)
+- `api.ts` — axios інстанс з interceptors (додає `Authorization: Bearer <token>` з SecureStore; обробка 401).
+- `authService.register(data: RegisterData)` -> POST `/api/Auth/register` (включає `deviceToken`).
+- `authService.login(email,password)` -> POST `/api/Auth/login`.
+- `authService.logout()` — очистка локального сховища.
+- `productService.searchGlobalProducts(q)` -> GET `api/products/search?q=`.
+- `productService.getProductById(id)` -> GET `api/Products/{id}`.
+- `productService.createProduct(payload)` -> POST `api/Products`.
+- `teamService.getTeams()` -> GET `/api/Teams`.
+- `teamService.createTeam(name)` -> POST `/api/Teams`.
+- `teamService.joinTeam(inviteCode)` -> POST `/api/Teams/join`.
+- `teamService.updateTeam(id,name)` -> PUT `/api/Teams/{id}`.
+- `teamService.deleteTeam(id)` -> DELETE `/api/Teams/{id}`.
+- `teamService.getTeamById(id)` -> GET `/api/Teams/{id}`.
+- `teamService.getParticipants(teamId)` -> GET `/api/Teams/{teamId}/participants` (використовується в клієнті).
+- `shoppingListService.getByTeam(teamId)` -> GET `api/lists/items/team/{teamId}`.
+- `shoppingListService.createItem(payload)` -> POST `api/lists/items`.
+- `shoppingListService.updateItem(id,payload)` -> PUT `api/lists/items/{id}`.
+- `shoppingListService.deleteItem(id)` -> DELETE `api/lists/items/{id}`.
+- `notificationService.sendGroupNotification(request)` -> POST `/api/Notification/send-group` (клієнтський виклик).
+- `notificationService.sendMemberNotification(request)` -> POST `/api/Notification/send-member`.
+- `userService.getName()` -> GET `/api/Users/name`.
+- `userService.getPhoto()` -> GET `/api/Users/photo`.
+- `userService.savePhoto(photoBase64)` -> PUT `/api/Users/photo`.
+- `userService.deletePhoto()` -> DELETE `/api/Users/photo`.
+- `userService.getPreferences()` -> GET `/api/Users/preferences`.
+- `userService.replacePreferences(preferences)` -> PUT `/api/Users/preferences`.
+- `budgetService.createBudget(payload)` -> POST `/api/Budgets`.
+- `budgetService.getBudgetsByTeam(teamId)` -> GET `/api/Budgets/team/{teamId}`.
+
+11) Бекенд API — ендпоінти (із контролерів)
+- AuthController
+  - POST `/api/Auth/register` — створення користувача, опціонально додає `UserDevice` з `DeviceToken`.
+  - POST `/api/Auth/login` — авторизація, повертає JWT та дані користувача.
+- UsersController
+  - GET `/api/Users/name`.
+  - GET `/api/Users/photo`.
+  - PUT `/api/Users/photo`.
+  - DELETE `/api/Users/photo`.
+  - GET `/api/Users/preferences`.
+  - POST `/api/Users/preferences`.
+  - PUT `/api/Users/preferences`.
+  - DELETE `/api/Users/preferences/{preference}`.
+- TeamsController
+  - GET `/api/Teams`.
+  - POST `/api/Teams`.
+  - POST `/api/Teams/join`.
+  - GET `/api/Teams/{id}`.
+  - PUT `/api/Teams/{id}`.
+  - DELETE `/api/Teams/{id}`.
+- ProductsController
+  - GET `/api/Products`.
+  - GET `/api/Products/{id}`.
+  - POST `/api/Products`.
+  - PUT `/api/Products/{id}`.
+  - DELETE `/api/Products/{id}`.
+  - GET `/api/Products/search?q=`.
+- CategoriesController
+  - GET `/api/Categories`.
+  - GET `/api/Categories/{id}`.
+  - POST `/api/Categories`.
+  - PUT `/api/Categories/{id}`.
+  - DELETE `/api/Categories/{id}`.
+- ShoppingListItemsController
+  - GET `api/lists/items/team/{teamId}`.
+  - POST `api/lists/items`.
+  - PUT `api/lists/items/{id}`.
+  - DELETE `api/lists/items/{id}`.
+  - POST `api/lists/items/teams/{teamId}/finish-shopping`.
+- NotificationController (TestToSendNotify)
+  - POST `/api/Notification/SendNotification` — збирає device tokens через запит `GetTeamDeviceTokensQuery` і відправляє multicast через Firebase Admin SDK.
+
+12) Утиліти, компоненти та інші внутрішні можливості
+- `utils/teamInviteQr.ts` — збірка URI для генерації QR коду на `api.qrserver.com`.
+- `toast` — уніфікований метод показу success/info/error тостів у UI.
+- `validation.ts` — локальні валідації (email, password rules).
+- i18n / словники: `i18n.uk.ts`, `i18n.en.ts` — локалізація UI.
+- Компоненти: `ThemedView`, `ThemedText`, `PasswordInput`, `OnboardingScreen`, `parallax-scroll-view`, `haptic-tab` та інші.
+
+13) Специфічні сценарії / поведінки
+- При реєстрації: збирається push токен (FCM або Expo), передається на бекенд.
+- Після успішного приєднання до команди надсилається групове сповіщення через `notificationService`.
+- При створенні продукту з фото: продукт створюється через `/api/Products` і повертає id, потім використовуєтьcя для створення елементу списку.
+- SignalR використовується для синхронізації списків у реальному часі; клієнт підключається/відключається при відкритті/закритті сторінки.
+- axios interceptor перехоплює 401 і виконує очистку сесії та редірект на логін.
+
+14) Нотатки про точки інтеграції / зовнішні сервіси
+- Firebase Cloud Messaging (через Firebase Admin SDK на сервері та `@react-native-firebase/messaging` на клієнті для отримання токенів).
+- QR-код генерація — `https://api.qrserver.com/v1/create-qr-code/`.
+- SignalR hub (серверний SignalR) для `shopping-list`.
+
+---
+Якщо потрібно, можу:
+- Згенерувати короткий CSV/markdown варіант цього переліку.
+- Додати ще докладніший розклад для кожного ендпоінта (тіпа params + body + response).

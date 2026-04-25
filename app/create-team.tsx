@@ -37,7 +37,10 @@ export default function CreateTeamPage() {
 
     const parsedLimit = Number(String(limitAmount).replace(/[^0-9.]/g, ""));
     if (!limitAmount || !Number.isFinite(parsedLimit) || parsedLimit <= 0) {
-      showToast.error("Помилка", "Вкажіть допустимий ліміт бюджету");
+      showToast.error(
+        t("createTeam.invalidBudgetTitle"),
+        t("createTeam.invalidBudgetText"),
+      );
       return;
     }
 
@@ -125,12 +128,12 @@ export default function CreateTeamPage() {
         />
 
         <Text style={[styles.label, { marginTop: 12 }]}>
-          Ліміт бюджету (UAH)
+          {t("createTeam.budgetLimitLabel")}
         </Text>
         <TextInput
           value={limitAmount}
           onChangeText={setLimitAmount}
-          placeholder="Наприклад: 10000"
+          placeholder={t("createTeam.budgetLimitPlaceholder")}
           style={styles.input}
           keyboardType="numeric"
           editable={!isSaving}
